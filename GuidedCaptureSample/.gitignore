@@ -1,0 +1,26 @@
+
+# Xcode
+.DS_Store
+*/build/
+*.derivedData
+*.xcuserstate
+*.xcuserdata/
+*.breakable
+*.xccheckout
+*.moved-aside
+DerivedData/
+*.hmap
+*.ipa
+*.xg
+*.o
+
+# Swift Package Manager
+.build/
+
+
+# CocoaPods
+Pods/
+
+# Secrets
+**/SupabaseConfig.swift
+

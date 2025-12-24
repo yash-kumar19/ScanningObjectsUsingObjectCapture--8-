@@ -7,6 +7,60 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		49BFD3C02EF9B6C30076E189 /* OwnerReservationsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3A92EF9B6C30076E189 /* OwnerReservationsScreen.swift */; };
+		49BFD3C12EF9B6C30076E189 /* SignupScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD39C2EF9B6C30076E189 /* SignupScreen.swift */; };
+		49BFD3C22EF9B6C30076E189 /* RoleSelectionScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3B72EF9B6C30076E189 /* RoleSelectionScreen.swift */; };
+		49BFD3C32EF9B6C30076E189 /* MenuScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3B12EF9B6C30076E189 /* MenuScreen.swift */; };
+		49BFD3C42EF9B6C30076E189 /* MenuViewerScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3B22EF9B6C30076E189 /* MenuViewerScreen.swift */; };
+		49BFD3C52EF9B6C30076E189 /* Preview3DView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD38B2EF9B6C30076E189 /* Preview3DView.swift */; };
+		49BFD3C62EF9B6C30076E189 /* RestaurantOnboardingScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3AD2EF9B6C30076E189 /* RestaurantOnboardingScreen.swift */; };
+		49BFD3C72EF9B6C30076E189 /* SkeletonModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3912EF9B6C30076E189 /* SkeletonModifier.swift */; };
+		49BFD3C82EF9B6C30076E189 /* Toast.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3942EF9B6C30076E189 /* Toast.swift */; };
+		49BFD3C92EF9B6C30076E189 /* SearchScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3B82EF9B6C30076E189 /* SearchScreen.swift */; };
+		49BFD3CA2EF9B6C30076E189 /* SearchInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD38F2EF9B6C30076E189 /* SearchInput.swift */; };
+		49BFD3CB2EF9B6C30076E189 /* Restaurant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3972EF9B6C30076E189 /* Restaurant.swift */; };
+		49BFD3CC2EF9B6C30076E189 /* LoginButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3892EF9B6C30076E189 /* LoginButton.swift */; };
+		49BFD3CD2EF9B6C30076E189 /* OwnerSettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3AA2EF9B6C30076E189 /* OwnerSettingsScreen.swift */; };
+		49BFD3CE2EF9B6C30076E189 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3992EF9B6C30076E189 /* RootView.swift */; };
+		49BFD3CF2EF9B6C30076E189 /* CaptureSetupScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3A02EF9B6C30076E189 /* CaptureSetupScreen.swift */; };
+		49BFD3D02EF9B6C30076E189 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3B02EF9B6C30076E189 /* HomeView.swift */; };
+		49BFD3D12EF9B6C30076E189 /* OwnerMenuScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3A82EF9B6C30076E189 /* OwnerMenuScreen.swift */; };
+		49BFD3D22EF9B6C30076E189 /* AddEditDishScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD39E2EF9B6C30076E189 /* AddEditDishScreen.swift */; };
+		49BFD3D32EF9B6C30076E189 /* OnboardingSuccessScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3A42EF9B6C30076E189 /* OnboardingSuccessScreen.swift */; };
+		49BFD3D42EF9B6C30076E189 /* GlowBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3882EF9B6C30076E189 /* GlowBackground.swift */; };
+		49BFD3D52EF9B6C30076E189 /* GeneratedModelsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3A12EF9B6C30076E189 /* GeneratedModelsScreen.swift */; };
+		49BFD3D62EF9B6C30076E189 /* AppColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3BB2EF9B6C30076E189 /* AppColors.swift */; };
+		49BFD3D72EF9B6C30076E189 /* SecondaryButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3902EF9B6C30076E189 /* SecondaryButton.swift */; };
+		49BFD3D92EF9B6C30076E189 /* FeatureCardV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3832EF9B6C30076E189 /* FeatureCardV2.swift */; };
+		49BFD3DA2EF9B6C30076E189 /* SplashScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3B92EF9B6C30076E189 /* SplashScreen.swift */; };
+		49BFD3DB2EF9B6C30076E189 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3BC2EF9B6C30076E189 /* Theme.swift */; };
+		49BFD3DC2EF9B6C30076E189 /* DishViewerScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3AF2EF9B6C30076E189 /* DishViewerScreen.swift */; };
+		49BFD3DD2EF9B6C30076E189 /* BottomTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3802EF9B6C30076E189 /* BottomTabBar.swift */; };
+		49BFD3DE2EF9B6C30076E189 /* ScaleButtonStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD38E2EF9B6C30076E189 /* ScaleButtonStyle.swift */; };
+		49BFD3DF2EF9B6C30076E189 /* SupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3922EF9B6C30076E189 /* SupabaseConfig.swift */; };
+		49BFD3E02EF9B6C30076E189 /* GhostButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3852EF9B6C30076E189 /* GhostButton.swift */; };
+		49BFD3E12EF9B6C30076E189 /* RestaurantDetailsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3B62EF9B6C30076E189 /* RestaurantDetailsScreen.swift */; };
+		49BFD3E22EF9B6C30076E189 /* PrimaryButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD38C2EF9B6C30076E189 /* PrimaryButton.swift */; };
+		49BFD3E32EF9B6C30076E189 /* OwnerTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3AC2EF9B6C30076E189 /* OwnerTabView.swift */; };
+		49BFD3E42EF9B6C30076E189 /* OwnerSignupScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3AB2EF9B6C30076E189 /* OwnerSignupScreen.swift */; };
+		49BFD3E52EF9B6C30076E189 /* RestaurantCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD38D2EF9B6C30076E189 /* RestaurantCard.swift */; };
+		49BFD3E62EF9B6C30076E189 /* OwnerDashboardScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3A52EF9B6C30076E189 /* OwnerDashboardScreen.swift */; };
+		49BFD3E72EF9B6C30076E189 /* ViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3BD2EF9B6C30076E189 /* ViewExtensions.swift */; };
+		49BFD3E82EF9B6C30076E189 /* OwnerLoginScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3A72EF9B6C30076E189 /* OwnerLoginScreen.swift */; };
+		49BFD3E92EF9B6C30076E189 /* ManualCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3A22EF9B6C30076E189 /* ManualCaptureView.swift */; };
+		49BFD3EA2EF9B6C30076E189 /* OwnerGeneratorScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3A62EF9B6C30076E189 /* OwnerGeneratorScreen.swift */; };
+		49BFD3EB2EF9B6C30076E189 /* GlassInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3872EF9B6C30076E189 /* GlassInput.swift */; };
+		49BFD3EC2EF9B6C30076E189 /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3932EF9B6C30076E189 /* SupabaseManager.swift */; };
+		49BFD3ED2EF9B6C30076E189 /* DishCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3822EF9B6C30076E189 /* DishCard.swift */; };
+		49BFD3EE2EF9B6C30076E189 /* CategoryTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3812EF9B6C30076E189 /* CategoryTab.swift */; };
+		49BFD3EF2EF9B6C30076E189 /* ReservationScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3B52EF9B6C30076E189 /* ReservationScreen.swift */; };
+		49BFD3F02EF9B6C30076E189 /* MyReservationsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3B32EF9B6C30076E189 /* MyReservationsScreen.swift */; };
+		49BFD3F12EF9B6C30076E189 /* Model3DView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD38A2EF9B6C30076E189 /* Model3DView.swift */; };
+		49BFD3F22EF9B6C30076E189 /* BecomeOwnerScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD39F2EF9B6C30076E189 /* BecomeOwnerScreen.swift */; };
+		49BFD3F32EF9B6C30076E189 /* LoginScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD39B2EF9B6C30076E189 /* LoginScreen.swift */; };
+		49BFD3F42EF9B6C30076E189 /* ProfileScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3B42EF9B6C30076E189 /* ProfileScreen.swift */; };
+		49BFD3F52EF9B6C30076E189 /* FilterChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3842EF9B6C30076E189 /* FilterChip.swift */; };
+		49BFD3F62EF9B6C30076E189 /* GlassCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3862EF9B6C30076E189 /* GlassCard.swift */; };
 		648C27652BFEA9EE002DBFF1 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 648C27642BFEA9EE002DBFF1 /* README.md */; };
 		64A07DC62BFE7CCB00FDE113 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 64A07DC52BFE7CCB00FDE113 /* Preview Assets.xcassets */; };
 		64A07DE42BFE7CDA00FDE113 /* OnboardingTutorialView+LocalizedString.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64A07DDA2BFE7CDA00FDE113 /* OnboardingTutorialView+LocalizedString.swift */; };
@@ -54,7 +108,61 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		0A2296AE533E6CFA4C7FD196 /* LICENSE.txt */ = {isa = PBXFileReference; includeInIndex = 1; path = LICENSE.txt; sourceTree = "<group>"; };
+		0A2296AE533E6CFA4C7FD196 /* LICENSE.txt */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text; path = LICENSE.txt; sourceTree = "<group>"; };
+		49BFD3802EF9B6C30076E189 /* BottomTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomTabBar.swift; sourceTree = "<group>"; };
+		49BFD3812EF9B6C30076E189 /* CategoryTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryTab.swift; sourceTree = "<group>"; };
+		49BFD3822EF9B6C30076E189 /* DishCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DishCard.swift; sourceTree = "<group>"; };
+		49BFD3832EF9B6C30076E189 /* FeatureCardV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureCardV2.swift; sourceTree = "<group>"; };
+		49BFD3842EF9B6C30076E189 /* FilterChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterChip.swift; sourceTree = "<group>"; };
+		49BFD3852EF9B6C30076E189 /* GhostButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhostButton.swift; sourceTree = "<group>"; };
+		49BFD3862EF9B6C30076E189 /* GlassCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCard.swift; sourceTree = "<group>"; };
+		49BFD3872EF9B6C30076E189 /* GlassInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassInput.swift; sourceTree = "<group>"; };
+		49BFD3882EF9B6C30076E189 /* GlowBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlowBackground.swift; sourceTree = "<group>"; };
+		49BFD3892EF9B6C30076E189 /* LoginButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginButton.swift; sourceTree = "<group>"; };
+		49BFD38A2EF9B6C30076E189 /* Model3DView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Model3DView.swift; sourceTree = "<group>"; };
+		49BFD38B2EF9B6C30076E189 /* Preview3DView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preview3DView.swift; sourceTree = "<group>"; };
+		49BFD38C2EF9B6C30076E189 /* PrimaryButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimaryButton.swift; sourceTree = "<group>"; };
+		49BFD38D2EF9B6C30076E189 /* RestaurantCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestaurantCard.swift; sourceTree = "<group>"; };
+		49BFD38E2EF9B6C30076E189 /* ScaleButtonStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaleButtonStyle.swift; sourceTree = "<group>"; };
+		49BFD38F2EF9B6C30076E189 /* SearchInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchInput.swift; sourceTree = "<group>"; };
+		49BFD3902EF9B6C30076E189 /* SecondaryButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecondaryButton.swift; sourceTree = "<group>"; };
+		49BFD3912EF9B6C30076E189 /* SkeletonModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkeletonModifier.swift; sourceTree = "<group>"; };
+		49BFD3922EF9B6C30076E189 /* SupabaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseConfig.swift; sourceTree = "<group>"; };
+		49BFD3932EF9B6C30076E189 /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
+		49BFD3942EF9B6C30076E189 /* Toast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Toast.swift; sourceTree = "<group>"; };
+		49BFD3972EF9B6C30076E189 /* Restaurant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Restaurant.swift; sourceTree = "<group>"; };
+		49BFD3992EF9B6C30076E189 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		49BFD39B2EF9B6C30076E189 /* LoginScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginScreen.swift; sourceTree = "<group>"; };
+		49BFD39C2EF9B6C30076E189 /* SignupScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupScreen.swift; sourceTree = "<group>"; };
+		49BFD39E2EF9B6C30076E189 /* AddEditDishScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddEditDishScreen.swift; sourceTree = "<group>"; };
+		49BFD39F2EF9B6C30076E189 /* BecomeOwnerScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BecomeOwnerScreen.swift; sourceTree = "<group>"; };
+		49BFD3A02EF9B6C30076E189 /* CaptureSetupScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSetupScreen.swift; sourceTree = "<group>"; };
+		49BFD3A12EF9B6C30076E189 /* GeneratedModelsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedModelsScreen.swift; sourceTree = "<group>"; };
+		49BFD3A22EF9B6C30076E189 /* ManualCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualCaptureView.swift; sourceTree = "<group>"; };
+		49BFD3A42EF9B6C30076E189 /* OnboardingSuccessScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingSuccessScreen.swift; sourceTree = "<group>"; };
+		49BFD3A52EF9B6C30076E189 /* OwnerDashboardScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnerDashboardScreen.swift; sourceTree = "<group>"; };
+		49BFD3A62EF9B6C30076E189 /* OwnerGeneratorScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnerGeneratorScreen.swift; sourceTree = "<group>"; };
+		49BFD3A72EF9B6C30076E189 /* OwnerLoginScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnerLoginScreen.swift; sourceTree = "<group>"; };
+		49BFD3A82EF9B6C30076E189 /* OwnerMenuScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnerMenuScreen.swift; sourceTree = "<group>"; };
+		49BFD3A92EF9B6C30076E189 /* OwnerReservationsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnerReservationsScreen.swift; sourceTree = "<group>"; };
+		49BFD3AA2EF9B6C30076E189 /* OwnerSettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnerSettingsScreen.swift; sourceTree = "<group>"; };
+		49BFD3AB2EF9B6C30076E189 /* OwnerSignupScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnerSignupScreen.swift; sourceTree = "<group>"; };
+		49BFD3AC2EF9B6C30076E189 /* OwnerTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnerTabView.swift; sourceTree = "<group>"; };
+		49BFD3AD2EF9B6C30076E189 /* RestaurantOnboardingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestaurantOnboardingScreen.swift; sourceTree = "<group>"; };
+		49BFD3AF2EF9B6C30076E189 /* DishViewerScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DishViewerScreen.swift; sourceTree = "<group>"; };
+		49BFD3B02EF9B6C30076E189 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		49BFD3B12EF9B6C30076E189 /* MenuScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuScreen.swift; sourceTree = "<group>"; };
+		49BFD3B22EF9B6C30076E189 /* MenuViewerScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuViewerScreen.swift; sourceTree = "<group>"; };
+		49BFD3B32EF9B6C30076E189 /* MyReservationsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyReservationsScreen.swift; sourceTree = "<group>"; };
+		49BFD3B42EF9B6C30076E189 /* ProfileScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileScreen.swift; sourceTree = "<group>"; };
+		49BFD3B52EF9B6C30076E189 /* ReservationScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReservationScreen.swift; sourceTree = "<group>"; };
+		49BFD3B62EF9B6C30076E189 /* RestaurantDetailsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestaurantDetailsScreen.swift; sourceTree = "<group>"; };
+		49BFD3B72EF9B6C30076E189 /* RoleSelectionScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoleSelectionScreen.swift; sourceTree = "<group>"; };
+		49BFD3B82EF9B6C30076E189 /* SearchScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchScreen.swift; sourceTree = "<group>"; };
+		49BFD3B92EF9B6C30076E189 /* SplashScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashScreen.swift; sourceTree = "<group>"; };
+		49BFD3BB2EF9B6C30076E189 /* AppColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColors.swift; sourceTree = "<group>"; };
+		49BFD3BC2EF9B6C30076E189 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		49BFD3BD2EF9B6C30076E189 /* ViewExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewExtensions.swift; sourceTree = "<group>"; };
 		648C27642BFEA9EE002DBFF1 /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; name = README.md; path = ../README.md; sourceTree = "<group>"; };
 		64A07DBB2BFE7CCA00FDE113 /* GuidedCaptureSample.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GuidedCaptureSample.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		64A07DC52BFE7CCB00FDE113 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
@@ -99,7 +207,7 @@
 		8DB8EB4B2C0A46E4004F3E19 /* BottomOverlayButtons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomOverlayButtons.swift; sourceTree = "<group>"; };
 		8DB8EB4D2C0A5940004F3E19 /* TopOverlayButtons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopOverlayButtons.swift; sourceTree = "<group>"; };
 		8DB8EB4F2C0A601C004F3E19 /* TutorialPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TutorialPageView.swift; sourceTree = "<group>"; };
-		CD61D7696BF8262EF4D5A1D7 /* SampleCode.xcconfig */ = {isa = PBXFileReference; name = SampleCode.xcconfig; path = ../Configuration/SampleCode.xcconfig; sourceTree = "<group>"; };
+		CD61D7696BF8262EF4D5A1D7 /* SampleCode.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = SampleCode.xcconfig; path = ../Configuration/SampleCode.xcconfig; sourceTree = "<group>"; };
 		F9432A612C17AB6F00D540FD /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = Settings.bundle; sourceTree = "<group>"; };
 		F9432A632C17AC0500D540FD /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -115,9 +223,135 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		49BFD3952EF9B6C30076E189 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				49BFD3802EF9B6C30076E189 /* BottomTabBar.swift */,
+				49BFD3812EF9B6C30076E189 /* CategoryTab.swift */,
+				49BFD3822EF9B6C30076E189 /* DishCard.swift */,
+				49BFD3832EF9B6C30076E189 /* FeatureCardV2.swift */,
+				49BFD3842EF9B6C30076E189 /* FilterChip.swift */,
+				49BFD3852EF9B6C30076E189 /* GhostButton.swift */,
+				49BFD3862EF9B6C30076E189 /* GlassCard.swift */,
+				49BFD3872EF9B6C30076E189 /* GlassInput.swift */,
+				49BFD3882EF9B6C30076E189 /* GlowBackground.swift */,
+				49BFD3892EF9B6C30076E189 /* LoginButton.swift */,
+				49BFD38A2EF9B6C30076E189 /* Model3DView.swift */,
+				49BFD38B2EF9B6C30076E189 /* Preview3DView.swift */,
+				49BFD38C2EF9B6C30076E189 /* PrimaryButton.swift */,
+				49BFD38D2EF9B6C30076E189 /* RestaurantCard.swift */,
+				49BFD38E2EF9B6C30076E189 /* ScaleButtonStyle.swift */,
+				49BFD38F2EF9B6C30076E189 /* SearchInput.swift */,
+				49BFD3902EF9B6C30076E189 /* SecondaryButton.swift */,
+				49BFD3912EF9B6C30076E189 /* SkeletonModifier.swift */,
+				49BFD3922EF9B6C30076E189 /* SupabaseConfig.swift */,
+				49BFD3932EF9B6C30076E189 /* SupabaseManager.swift */,
+				49BFD3942EF9B6C30076E189 /* Toast.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		49BFD3962EF9B6C30076E189 /* Guidelines */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Guidelines;
+			sourceTree = "<group>";
+		};
+		49BFD3982EF9B6C30076E189 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				49BFD3972EF9B6C30076E189 /* Restaurant.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		49BFD39A2EF9B6C30076E189 /* Navigation */ = {
+			isa = PBXGroup;
+			children = (
+				49BFD3992EF9B6C30076E189 /* RootView.swift */,
+			);
+			path = Navigation;
+			sourceTree = "<group>";
+		};
+		49BFD39D2EF9B6C30076E189 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				49BFD39B2EF9B6C30076E189 /* LoginScreen.swift */,
+				49BFD39C2EF9B6C30076E189 /* SignupScreen.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		49BFD3AE2EF9B6C30076E189 /* Owner */ = {
+			isa = PBXGroup;
+			children = (
+				49BFD39E2EF9B6C30076E189 /* AddEditDishScreen.swift */,
+				49BFD39F2EF9B6C30076E189 /* BecomeOwnerScreen.swift */,
+				49BFD3A02EF9B6C30076E189 /* CaptureSetupScreen.swift */,
+				49BFD3A12EF9B6C30076E189 /* GeneratedModelsScreen.swift */,
+				49BFD3A22EF9B6C30076E189 /* ManualCaptureView.swift */,
+				49BFD3A42EF9B6C30076E189 /* OnboardingSuccessScreen.swift */,
+				49BFD3A52EF9B6C30076E189 /* OwnerDashboardScreen.swift */,
+				49BFD3A62EF9B6C30076E189 /* OwnerGeneratorScreen.swift */,
+				49BFD3A72EF9B6C30076E189 /* OwnerLoginScreen.swift */,
+				49BFD3A82EF9B6C30076E189 /* OwnerMenuScreen.swift */,
+				49BFD3A92EF9B6C30076E189 /* OwnerReservationsScreen.swift */,
+				49BFD3AA2EF9B6C30076E189 /* OwnerSettingsScreen.swift */,
+				49BFD3AB2EF9B6C30076E189 /* OwnerSignupScreen.swift */,
+				49BFD3AC2EF9B6C30076E189 /* OwnerTabView.swift */,
+				49BFD3AD2EF9B6C30076E189 /* RestaurantOnboardingScreen.swift */,
+			);
+			path = Owner;
+			sourceTree = "<group>";
+		};
+		49BFD3BA2EF9B6C30076E189 /* Screens */ = {
+			isa = PBXGroup;
+			children = (
+				49BFD39D2EF9B6C30076E189 /* Auth */,
+				49BFD3AE2EF9B6C30076E189 /* Owner */,
+				49BFD3AF2EF9B6C30076E189 /* DishViewerScreen.swift */,
+				49BFD3B02EF9B6C30076E189 /* HomeView.swift */,
+				49BFD3B12EF9B6C30076E189 /* MenuScreen.swift */,
+				49BFD3B22EF9B6C30076E189 /* MenuViewerScreen.swift */,
+				49BFD3B32EF9B6C30076E189 /* MyReservationsScreen.swift */,
+				49BFD3B42EF9B6C30076E189 /* ProfileScreen.swift */,
+				49BFD3B52EF9B6C30076E189 /* ReservationScreen.swift */,
+				49BFD3B62EF9B6C30076E189 /* RestaurantDetailsScreen.swift */,
+				49BFD3B72EF9B6C30076E189 /* RoleSelectionScreen.swift */,
+				49BFD3B82EF9B6C30076E189 /* SearchScreen.swift */,
+				49BFD3B92EF9B6C30076E189 /* SplashScreen.swift */,
+			);
+			path = Screens;
+			sourceTree = "<group>";
+		};
+		49BFD3BE2EF9B6C30076E189 /* Styles */ = {
+			isa = PBXGroup;
+			children = (
+				49BFD3BB2EF9B6C30076E189 /* AppColors.swift */,
+				49BFD3BC2EF9B6C30076E189 /* Theme.swift */,
+				49BFD3BD2EF9B6C30076E189 /* ViewExtensions.swift */,
+			);
+			path = Styles;
+			sourceTree = "<group>";
+		};
+		49BFD3BF2EF9B6C30076E189 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				49BFD3952EF9B6C30076E189 /* Components */,
+				49BFD3962EF9B6C30076E189 /* Guidelines */,
+				49BFD3982EF9B6C30076E189 /* Models */,
+				49BFD39A2EF9B6C30076E189 /* Navigation */,
+				49BFD3BA2EF9B6C30076E189 /* Screens */,
+				49BFD3BE2EF9B6C30076E189 /* Styles */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
 		64A07DB22BFE7CCA00FDE113 = {
 			isa = PBXGroup;
 			children = (
+				49BFD3BF2EF9B6C30076E189 /* UI */,
 				648C27642BFEA9EE002DBFF1 /* README.md */,
 				F9432A612C17AB6F00D540FD /* Settings.bundle */,
 				64A07DBD2BFE7CCA00FDE113 /* GuidedCaptureSample */,
@@ -319,6 +553,60 @@
 				64A07DF22BFE7CDA00FDE113 /* TimedMessageList.swift in Sources */,
 				64A07DF42BFE7CDA00FDE113 /* OnboardingButtonView+LocalizedString.swift in Sources */,
 				64A07E102BFE9E0F00FDE113 /* FeedbackView.swift in Sources */,
+				49BFD3C02EF9B6C30076E189 /* OwnerReservationsScreen.swift in Sources */,
+				49BFD3C12EF9B6C30076E189 /* SignupScreen.swift in Sources */,
+				49BFD3C22EF9B6C30076E189 /* RoleSelectionScreen.swift in Sources */,
+				49BFD3C32EF9B6C30076E189 /* MenuScreen.swift in Sources */,
+				49BFD3C42EF9B6C30076E189 /* MenuViewerScreen.swift in Sources */,
+				49BFD3C52EF9B6C30076E189 /* Preview3DView.swift in Sources */,
+				49BFD3C62EF9B6C30076E189 /* RestaurantOnboardingScreen.swift in Sources */,
+				49BFD3C72EF9B6C30076E189 /* SkeletonModifier.swift in Sources */,
+				49BFD3C82EF9B6C30076E189 /* Toast.swift in Sources */,
+				49BFD3C92EF9B6C30076E189 /* SearchScreen.swift in Sources */,
+				49BFD3CA2EF9B6C30076E189 /* SearchInput.swift in Sources */,
+				49BFD3CB2EF9B6C30076E189 /* Restaurant.swift in Sources */,
+				49BFD3CC2EF9B6C30076E189 /* LoginButton.swift in Sources */,
+				49BFD3CD2EF9B6C30076E189 /* OwnerSettingsScreen.swift in Sources */,
+				49BFD3CE2EF9B6C30076E189 /* RootView.swift in Sources */,
+				49BFD3CF2EF9B6C30076E189 /* CaptureSetupScreen.swift in Sources */,
+				49BFD3D02EF9B6C30076E189 /* HomeView.swift in Sources */,
+				49BFD3D12EF9B6C30076E189 /* OwnerMenuScreen.swift in Sources */,
+				49BFD3D22EF9B6C30076E189 /* AddEditDishScreen.swift in Sources */,
+				49BFD3D32EF9B6C30076E189 /* OnboardingSuccessScreen.swift in Sources */,
+				49BFD3D42EF9B6C30076E189 /* GlowBackground.swift in Sources */,
+				49BFD3D52EF9B6C30076E189 /* GeneratedModelsScreen.swift in Sources */,
+				49BFD3D62EF9B6C30076E189 /* AppColors.swift in Sources */,
+				49BFD3D72EF9B6C30076E189 /* SecondaryButton.swift in Sources */,
+				49BFD3D92EF9B6C30076E189 /* FeatureCardV2.swift in Sources */,
+				49BFD3DA2EF9B6C30076E189 /* SplashScreen.swift in Sources */,
+				49BFD3DB2EF9B6C30076E189 /* Theme.swift in Sources */,
+				49BFD3DC2EF9B6C30076E189 /* DishViewerScreen.swift in Sources */,
+				49BFD3DD2EF9B6C30076E189 /* BottomTabBar.swift in Sources */,
+				49BFD3DE2EF9B6C30076E189 /* ScaleButtonStyle.swift in Sources */,
+				49BFD3DF2EF9B6C30076E189 /* SupabaseConfig.swift in Sources */,
+				49BFD3E02EF9B6C30076E189 /* GhostButton.swift in Sources */,
+				49BFD3E12EF9B6C30076E189 /* RestaurantDetailsScreen.swift in Sources */,
+				49BFD3E22EF9B6C30076E189 /* PrimaryButton.swift in Sources */,
+				49BFD3E32EF9B6C30076E189 /* OwnerTabView.swift in Sources */,
+				49BFD3E42EF9B6C30076E189 /* OwnerSignupScreen.swift in Sources */,
+				49BFD3E52EF9B6C30076E189 /* RestaurantCard.swift in Sources */,
+				49BFD3E62EF9B6C30076E189 /* OwnerDashboardScreen.swift in Sources */,
+				49BFD3E72EF9B6C30076E189 /* ViewExtensions.swift in Sources */,
+				49BFD3E82EF9B6C30076E189 /* OwnerLoginScreen.swift in Sources */,
+				49BFD3E92EF9B6C30076E189 /* ManualCaptureView.swift in Sources */,
+				49BFD3EA2EF9B6C30076E189 /* OwnerGeneratorScreen.swift in Sources */,
+				49BFD3EB2EF9B6C30076E189 /* GlassInput.swift in Sources */,
+				49BFD3EC2EF9B6C30076E189 /* SupabaseManager.swift in Sources */,
+				49BFD3ED2EF9B6C30076E189 /* DishCard.swift in Sources */,
+				49BFD3EE2EF9B6C30076E189 /* CategoryTab.swift in Sources */,
+				49BFD3EF2EF9B6C30076E189 /* ReservationScreen.swift in Sources */,
+				49BFD3F02EF9B6C30076E189 /* MyReservationsScreen.swift in Sources */,
+				49BFD3F12EF9B6C30076E189 /* Model3DView.swift in Sources */,
+				49BFD3F22EF9B6C30076E189 /* BecomeOwnerScreen.swift in Sources */,
+				49BFD3F32EF9B6C30076E189 /* LoginScreen.swift in Sources */,
+				49BFD3F42EF9B6C30076E189 /* ProfileScreen.swift in Sources */,
+				49BFD3F52EF9B6C30076E189 /* FilterChip.swift in Sources */,
+				49BFD3F62EF9B6C30076E189 /* GlassCard.swift in Sources */,
 				64A07E112BFE9E0F00FDE113 /* TutorialVideoView.swift in Sources */,
 				8DB8EB502C0A6023004F3E19 /* TutorialPageView.swift in Sources */,
 				64A07E122BFE9E0F00FDE113 /* ProgressBarView.swift in Sources */,
@@ -477,7 +765,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"GuidedCaptureSample/Preview Content\"";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = B8QR5P43QM;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -513,7 +801,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"GuidedCaptureSample/Preview Content\"";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = B8QR5P43QM;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;

@@ -13,8 +13,10 @@ struct GuidedCaptureSampleApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environment(AppDataModel.instance)
+            RootView()
+                .onOpenURL { url in
+                    SupabaseManager.shared.handleRedirectURL(url)
+                }
         }
     }
 }
