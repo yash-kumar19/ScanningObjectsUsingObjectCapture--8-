@@ -28,22 +28,7 @@ struct OnboardingSuccessScreen: View {
             .ignoresSafeArea()
             
             // 2. Celebration Background Glow
-            VStack {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [Color(hex: "22c55e").opacity(0.4), Color(hex: "2b7fff").opacity(0.3), Color(hex: "8b5cf6").opacity(0.2), Color.clear],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: 400
-                        )
-                    )
-                    .frame(width: 380, height: 380)
-                    .blur(radius: 150)
-                    .offset(y: -200)
-                Spacer()
-            }
-            .ignoresSafeArea()
+            // Celebration glow removed per user request
             
             // 3. Confetti Effect (Simple Implementation)
             ConfettiView()

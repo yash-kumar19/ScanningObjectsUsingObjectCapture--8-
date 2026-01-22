@@ -5,17 +5,25 @@ struct ProfileScreen: View {
     var onSwitchToOwner: (() -> Void)?
     
     @ObservedObject private var authManager = SupabaseManager.shared
+    @State private var profile: Profile?
+    @State private var isLoading = false
+    @State private var showBecomeOwner = false
     
-    var user: UserProfile {
-        UserProfile(
-            name: authManager.currentUser?.email?.components(separatedBy: "@").first?.capitalized ?? "User",
-            email: authManager.currentUser?.email ?? "user@example.com",
-            avatar: "https://images.unsplash.com/photo-1704726135027-9c6f034cfa41?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
-            memberSince: "November 2024",
-            reservationsCount: 0,
-            favoritesCount: 0,
-            rating: 5.0
-        )
+    // Combined User Data
+    var userName: String {
+        profile?.full_name ?? authManager.currentUser?.email?.components(separatedBy: "@").first?.capitalized ?? "User"
+    }
+    
+    var userEmail: String {
+        profile?.email ?? authManager.currentUser?.email ?? "Joined recently"
+    }
+    
+    var userAvatar: String {
+        profile?.avatar_url ?? "https://images.unsplash.com/photo-1704726135027-9c6f034cfa41?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400"
+    }
+    
+    var isOwner: Bool {
+        profile?.role == "owner"
     }
     
     let menuItems: [ProfileMenuItem] = [
@@ -26,25 +34,28 @@ struct ProfileScreen: View {
         ProfileMenuItem(icon: "gearshape.fill", label: "Settings", badge: nil, color: Color.fromHex("3B82F6"))
     ]
     
+    // Mock recent for now, can be real later
     let recentReservations = [
-        RecentReservation(id: "1", restaurant: "The Golden Fork", date: "Nov 15, 2024", guests: 2, status: "Completed"),
-        RecentReservation(id: "2", restaurant: "Sakura Sushi Bar", date: "Nov 10, 2024", guests: 4, status: "Completed"),
-        RecentReservation(id: "3", restaurant: "Bella Italia", date: "Nov 5, 2024", guests: 2, status: "Completed")
+        RecentReservation(id: "1", restaurant: "The Golden Fork", date: "Nov 15, 2024", guests: 2, status: "Completed")
     ]
-    
-    @State private var showBecomeOwner = false
     
     var body: some View {
         ZStack {
-            Color.appBackground.ignoresSafeArea()
+            Theme.background.ignoresSafeArea()
             
             ScrollView {
                 VStack(spacing: 24) {
                     // Header
                     headerSection
                     
-                    // User Profile Card
-                    userProfileCard
+                    if isLoading {
+                        ProgressView()
+                            .tint(.white)
+                            .padding()
+                    } else {
+                        // User Profile Card
+                        userProfileCard
+                    }
                     
                     // Menu Items
                     menuItemsSection
@@ -52,91 +63,11 @@ struct ProfileScreen: View {
                     // Recent Reservations
                     recentReservationsSection
                     
-                    // Owner Login Button
-                    // Owner Login Button (Redesigned)
-                    Button(action: { showBecomeOwner = true }) {
-                        HStack(spacing: 16) {
-                            // Icon
-                            ZStack {
-                                LinearGradient(
-                                    colors: [Color(hex: "8B5CF6"), Color(hex: "3B82F6")],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                                
-                                Image(systemName: "storefront.fill")
-                                    .font(.system(size: 24))
-                                    .foregroundColor(.white)
-                                
-                                // Sparkles
-                                Image(systemName: "sparkles")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(Color(hex: "FDE047"))
-                                    .offset(x: 14, y: -14)
-                            }
-                            .frame(width: 56, height: 56)
-                            .cornerRadius(16)
-                            .shadow(color: Color(hex: "8B5CF6").opacity(0.3), radius: 8, x: 0, y: 4)
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack(spacing: 8) {
-                                    Text("Become a\nRestaurant Owner")
-                                        .font(.system(size: 16, weight: .bold))
-                                        .foregroundColor(.white)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                        .lineLimit(2)
-                                    
-                                    Text("New")
-                                        .font(.system(size: 10, weight: .bold))
-                                        .foregroundColor(.white)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(Color(hex: "8B5CF6").opacity(0.6))
-                                        .cornerRadius(8)
-                                        .offset(y: -8)
-                                }
-                                
-                                Text("Upload 3D dishes and\ngrow your business")
-                                    .font(.system(size: 13))
-                                    .foregroundColor(Color.white.opacity(0.6))
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .lineLimit(2)
-                            }
-                            
-                            Spacer()
-                            
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(Color(hex: "8B5CF6"))
-                        }
-                        .padding(16)
-                        .background(
-                            ZStack {
-                                Color(hex: "1E293B").opacity(0.6)
-                                RoundedRectangle(cornerRadius: 24)
-                                    .stroke(
-                                        LinearGradient(
-                                            colors: [Color(hex: "8B5CF6").opacity(0.5), Color.clear],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        ),
-                                        lineWidth: 1
-                                    )
-                            }
-                        )
-                        .cornerRadius(24)
-                        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
-                    }
-                    .fullScreenCover(isPresented: $showBecomeOwner) {
-                        BecomeOwnerScreen(
-                            onContinue: {
-                                showBecomeOwner = false
-                                onSwitchToOwner?()
-                            },
-                            onBack: {
-                                showBecomeOwner = false
-                            }
-                        )
+                    // Owner Login Button - Hide if already owner
+                    if !isOwner {
+                        becomeOwnerButton
+                    } else {
+                        switchToOwnerButton
                     }
                     
                     // Logout Button
@@ -146,6 +77,35 @@ struct ProfileScreen: View {
                     Color.clear.frame(height: 120)
                 }
                 .padding(.horizontal, 20)
+            }
+        }
+        .onAppear {
+            loadProfile()
+            authManager.startPolling()
+        }
+        .onDisappear {
+            authManager.stopPolling()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .supabaseDataDidUpdate)) { _ in
+            loadProfile()
+        }
+    }
+    
+    private func loadProfile() {
+        guard let userId = authManager.currentUser?.id else { return }
+        // Don't set isLoading true on refresh to avoid flickering
+        if profile == nil { isLoading = true }
+        
+        Task {
+            do {
+                let fetchedProfile = try await authManager.fetchProfile(userId: userId)
+                await MainActor.run {
+                    self.profile = fetchedProfile
+                    self.isLoading = false
+                }
+            } catch {
+                print("Error loading profile: \(error)")
+                await MainActor.run { isLoading = false }
             }
         }
     }
@@ -182,7 +142,7 @@ struct ProfileScreen: View {
             HStack(spacing: 16) {
                 // Avatar
                 ZStack(alignment: .bottomTrailing) {
-                    AsyncImage(url: URL(string: user.avatar)) { phase in
+                    AsyncImage(url: URL(string: userAvatar)) { phase in
                         switch phase {
                         case .success(let image):
                             image
@@ -214,57 +174,70 @@ struct ProfileScreen: View {
                 
                 // User Info
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(user.name)
+                    Text(userName)
                         .font(.system(size: 20, weight: .bold))
                         .foregroundColor(.white)
                     
-                    Text(user.email)
+                    Text(userEmail)
                         .font(.system(size: 14))
                         .foregroundColor(Color.fromHex("94A3B8"))
                     
                     // Premium Badge
-                    Text("Premium Member")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(Color.fromHex("3B82F6"))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.fromHex("3B82F6").opacity(0.2))
-                        .cornerRadius(20)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 20)
-                                .stroke(Color.fromHex("3B82F6").opacity(0.3), lineWidth: 1)
-                        )
+                    if isOwner {
+                        Text("Restaurant Owner")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(Color.fromHex("8B5CF6")) // Purple
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.fromHex("8B5CF6").opacity(0.2))
+                            .cornerRadius(20)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .stroke(Color.fromHex("8B5CF6").opacity(0.3), lineWidth: 1)
+                            )
+                    } else {
+                        Text("Member")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(Color.fromHex("3B82F6"))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.fromHex("3B82F6").opacity(0.2))
+                            .cornerRadius(20)
+                    }
                 }
                 
                 Spacer()
             }
             
-            // Stats
+            // Stats (Mock for now)
             Divider()
                 .background(Color.white.opacity(0.1))
                 .padding(.vertical, 4)
             
             HStack(spacing: 0) {
-                StatView(value: "\(user.reservationsCount)", label: "Reservations")
+                StatView(value: "0", label: "Reservations")
                 
                 Rectangle()
                     .fill(Color.white.opacity(0.1))
                     .frame(width: 1)
                 
-                StatView(value: "\(user.favoritesCount)", label: "Favorites")
+                StatView(value: "0", label: "Favorites")
                 
                 Rectangle()
                     .fill(Color.white.opacity(0.1))
                     .frame(width: 1)
                 
-                StatView(value: String(format: "%.1f", user.rating), label: "Rating")
+                StatView(value: "5.0", label: "Rating")
             }
         }
         .padding(20)
-        .background(Color.fromHex("1E293B").opacity(0.6))
-        .cornerRadius(20)
+        .padding(20)
+        .background(
+            .ultraThinMaterial,
+            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(Color.white.opacity(0.1), lineWidth: 1)
         )
     }
@@ -288,6 +261,129 @@ struct ProfileScreen: View {
             ForEach(recentReservations, id: \.id) { reservation in
                 RecentReservationView(reservation: reservation)
             }
+        }
+    }
+    
+    // MARK: - Become Owner Button
+    private var becomeOwnerButton: some View {
+        Button(action: { showBecomeOwner = true }) {
+            HStack(spacing: 16) {
+                // Icon
+                ZStack {
+                    LinearGradient(
+                        colors: [Color(hex: "8B5CF6"), Color(hex: "3B82F6")],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    
+                    Image(systemName: "storefront.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(.white)
+                    
+                    // Sparkles
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 12))
+                        .foregroundColor(Color(hex: "FDE047"))
+                        .offset(x: 14, y: -14)
+                }
+                .frame(width: 56, height: 56)
+                .cornerRadius(16)
+                .shadow(color: Color(hex: "8B5CF6").opacity(0.3), radius: 8, x: 0, y: 4)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text("Become a\nRestaurant Owner")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .lineLimit(2)
+                        
+                        Text("New")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color(hex: "8B5CF6").opacity(0.6))
+                            .cornerRadius(8)
+                            .offset(y: -8)
+                    }
+                    
+                    Text("Upload 3D dishes and\ngrow your business")
+                        .font(.system(size: 13))
+                        .foregroundColor(Color.white.opacity(0.6))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(2)
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Color(hex: "8B5CF6"))
+            }
+            .padding(16)
+            .background(
+                ZStack {
+                    Color(hex: "1E293B").opacity(0.6)
+                    RoundedRectangle(cornerRadius: 24)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color(hex: "8B5CF6").opacity(0.5), Color.clear],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                }
+            )
+            .cornerRadius(24)
+            .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
+        }
+        .fullScreenCover(isPresented: $showBecomeOwner) {
+            BecomeOwnerScreen(
+                onContinue: {
+                    showBecomeOwner = false
+                    // Update profile role
+                    Task {
+                        // Pass nil/empty for optional fields as this is just a role switch or handled inside Onboarding
+                        // Actually, RestaurantOnboardingScreen handles the full update.
+                        // So here we might just need to reload.
+                        // But if we want to ensure role is set:
+                        try? await authManager.updateProfile(
+                             role: "owner",
+                             restaurantName: nil,
+                             logoURL: nil,
+                             cuisine: nil,
+                             address: nil,
+                             phone: nil,
+                             city: nil,
+                             pincode: nil,
+                             fssai: nil,
+                             openingHours: nil,
+                             bio: nil
+                        )
+                        // Reload
+                        loadProfile()
+                        onSwitchToOwner?()
+                    }
+                },
+                onBack: {
+                    showBecomeOwner = false
+                }
+            )
+        }
+    }
+    
+    // MARK: - Switch to Owner
+    private var switchToOwnerButton: some View {
+        Button(action: { onSwitchToOwner?() }) {
+            Text("Switch to Owner View")
+                .font(.headline)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.fromHex("8B5CF6"))
+                .cornerRadius(12)
         }
     }
     
@@ -430,16 +526,6 @@ struct RecentReservationView: View {
 }
 
 // MARK: - Models
-struct UserProfile {
-    let name: String
-    let email: String
-    let avatar: String
-    let memberSince: String
-    let reservationsCount: Int
-    let favoritesCount: Int
-    let rating: Double
-}
-
 struct ProfileMenuItem {
     let icon: String
     let label: String

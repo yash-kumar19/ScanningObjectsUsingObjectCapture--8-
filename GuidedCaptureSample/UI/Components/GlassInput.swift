@@ -38,10 +38,12 @@ struct GlassInput: View {
                 }
             }
             .padding(16)
-            .background(Color.white.opacity(0.05))
-            .cornerRadius(16)
+            .background(
+                Color(hex: "1e293b"), // Dark non-glass background
+                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+            )
             .overlay(
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(Color.white.opacity(0.1), lineWidth: 1)
             )
         }

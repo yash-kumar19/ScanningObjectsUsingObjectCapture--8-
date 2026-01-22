@@ -13,16 +13,8 @@ struct OwnerLoginScreen: View {
     
     var body: some View {
         ZStack {
+            // 1. Unified Liquid Glass Background
             Theme.background.ignoresSafeArea()
-            
-            // Background Glows
-            ZStack {
-                Circle()
-                    .fill(Theme.primaryBlue.opacity(0.4))
-                    .frame(width: 600, height: 600)
-                    .blur(radius: 120)
-                    .offset(y: -300)
-            }
             
             VStack(spacing: 0) {
                 // Back Button

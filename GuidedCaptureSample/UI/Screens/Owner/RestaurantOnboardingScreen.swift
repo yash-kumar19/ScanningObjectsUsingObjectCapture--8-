@@ -16,10 +16,14 @@ struct RestaurantOnboardingScreen: View {
     
     @State private var selectedItem: PhotosPickerItem?
     @State private var selectedImage: Image?
+    @State private var selectedImageData: Data? // Store data for upload
     
     @State private var isHeaderVisible = false
     @State private var isFormVisible = false
     @State private var showSuccess = false
+    @State private var isLoading = false
+    @State private var errorMessage = ""
+    @State private var showError = false
     
     let cuisineTypes = [
         "Indian", "Chinese", "Italian", "Mexican", "Japanese",
@@ -28,35 +32,7 @@ struct RestaurantOnboardingScreen: View {
     
     var body: some View {
         ZStack {
-            // 1. Background Gradient
-            LinearGradient(
-                colors: [
-                    Color(hex: "050505"),
-                    Color(hex: "0B0F1A"),
-                    Color(hex: "111827")
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-            
-            // 2. Background Glow Blob
-            VStack {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [Color(hex: "8b5cf6").opacity(0.4), Color(hex: "2b7fff").opacity(0)],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: 300
-                        )
-                    )
-                    .frame(width: 380, height: 380)
-                    .blur(radius: 120)
-                    .offset(y: -300)
-                Spacer()
-            }
-            .ignoresSafeArea()
+            Theme.background.ignoresSafeArea()
             
             // 3. Content
             ScrollView {
@@ -252,9 +228,27 @@ struct RestaurantOnboardingScreen: View {
                         }
                         
                         // Submit Button
-                        PrimaryButton(title: "Complete Setup", fullWidth: true) {
-                            showSuccess = true
+                        // Submit Button
+                        Button(action: saveProfile) {
+                            if isLoading {
+                                ProgressView()
+                                    .tint(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 16)
+                                    .background(Theme.gradientBlue)
+                                    .cornerRadius(20)
+                            } else {
+                                Text("Complete Setup")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 16)
+                                    .background(Theme.gradientBlue)
+                                    .cornerRadius(20)
+                                    .shadow(color: Theme.primaryBlue.opacity(0.4), radius: 16, x: 0, y: 8)
+                            }
                         }
+                        .disabled(isLoading)
                         .padding(.bottom, 40)
                     }
                     .offset(y: isFormVisible ? 0 : 20)
@@ -274,10 +268,16 @@ struct RestaurantOnboardingScreen: View {
                 }
             )
         }
+        .alert("Error", isPresented: $showError, actions: {
+            Button("OK") {}
+        }, message: {
+            Text(errorMessage)
+        })
         .onChange(of: selectedItem) { newItem in
             Task {
                 if let data = try? await newItem?.loadTransferable(type: Data.self),
                    let uiImage = UIImage(data: data) {
+                    selectedImageData = data // Save data
                     selectedImage = Image(uiImage: uiImage)
                 }
             }
@@ -288,6 +288,66 @@ struct RestaurantOnboardingScreen: View {
             }
             withAnimation(.easeOut(duration: 0.6).delay(0.2)) {
                 isFormVisible = true
+            }
+        }
+        }
+    
+    private func saveProfile() {
+        // Validation
+        guard let _ = selectedImageData else {
+            errorMessage = "Please upload a restaurant logo"
+            showError = true
+            return
+        }
+        
+        guard !restaurantName.isEmpty, !ownerName.isEmpty, !phone.isEmpty,
+              !address.isEmpty, !city.isEmpty, !pincode.isEmpty,
+              !fssai.isEmpty, !cuisine.isEmpty else {
+            errorMessage = "Please fill in all required fields"
+            showError = true
+            return
+        }
+        
+        isLoading = true
+        
+        Task {
+            do {
+                var logoURL = ""
+                // Upload logo
+                if let data = selectedImageData {
+                    let filename = "\(UUID().uuidString)"
+                    logoURL = try await SupabaseManager.shared.uploadLogo(data: data, name: filename)
+                }
+                
+                // Ensure profile exists (auto-create if missing)
+                guard let userId = SupabaseManager.shared.currentUser?.id else { return }
+                _ = try await SupabaseManager.shared.fetchProfile(userId: userId)
+                
+                // Update Profile
+                try await SupabaseManager.shared.updateProfile(
+                    role: "owner",
+                    restaurantName: restaurantName,
+                    logoURL: logoURL,
+                    cuisine: cuisine,
+                    address: address,
+                    phone: phone,
+                    city: city,
+                    pincode: pincode,
+                    fssai: fssai,
+                    openingHours: nil,
+                    bio: nil
+                )
+                
+                await MainActor.run {
+                    isLoading = false
+                    showSuccess = true
+                }
+            } catch {
+                await MainActor.run {
+                    isLoading = false
+                    errorMessage = error.localizedDescription
+                    showError = true
+                }
             }
         }
     }
@@ -321,11 +381,13 @@ struct CustomTextField: View {
                     .keyboardType(keyboardType)
             }
             .padding(14)
-            .background(Color.white.opacity(0.05))
-            .cornerRadius(16)
+            .background(
+                Color(hex: "1e293b"),
+                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+            )
             .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
             )
         }
     }

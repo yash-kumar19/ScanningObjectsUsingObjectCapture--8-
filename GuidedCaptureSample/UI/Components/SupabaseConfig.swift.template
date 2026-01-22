@@ -1,0 +1,25 @@
+import Foundation
+
+struct SupabaseConfig {
+    // TODO: Replace with your actual Supabase URL and Anon Key
+    // Get these values from your Supabase project settings:
+    // 1. Go to https://app.supabase.com
+    // 2. Select your project
+    // 3. Go to Settings > API
+    // 4. Copy the "Project URL" and "anon/public" key
+    
+    static let url = "YOUR_SUPABASE_URL_HERE"
+    static let anonKey = "YOUR_SUPABASE_ANON_KEY_HERE"
+    
+    static var authURL: URL {
+        return URL(string: "\(url)/auth/v1")!
+    }
+    
+    static var storageURL: URL {
+        return URL(string: "\(url)/storage/v1")!
+    }
+    
+    static var databaseURL: URL {
+        return URL(string: "\(url)/rest/v1")!
+    }
+}

@@ -12,12 +12,24 @@ struct GlassCard<Content: View>: View {
     var body: some View {
         content
             .padding(padding)
-            .background(Color.white.opacity(0.05))  // bg-card from React
-            .cornerRadius(12)  // rounded-xl = 12px
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.white.opacity(0.1), lineWidth: 1)  // border-border
+            .background(
+                Color(hex: "1e293b"), // Dark non-glass background
+                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
             )
-            .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)  // Subtle shadow
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                .white.opacity(0.15),
+                                .white.opacity(0.05)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            )
+            .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 5)
     }
 }

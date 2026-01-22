@@ -6,14 +6,14 @@ struct HomeView: View {
     var onLogout: () -> Void = {}
     
     @State private var selectedTab = 0
+    @State private var selectedRestaurant: Profile? // Track selected restaurant
 
     @State private var isLoading = true
     @State private var showSignup = true
     
     var body: some View {
         ZStack(alignment: .bottom) {
-            // Persistent Background
-            Color.appBackground.ignoresSafeArea()
+            Theme.background.ignoresSafeArea()
             
             // Show different content based on selected tab
             Group {
@@ -26,6 +26,9 @@ struct HomeView: View {
                                 .skeleton(isLoading: isLoading)
                             
                             // Restaurants Section
+                             // Since we don't have real data wired for the Home Tab widgets yet (except Search),
+                             // we leave this as is or we can wire it later.
+                             // For now, let's keep it mock or static to avoid breaking visuals.
                             restaurantsSection
                                 .skeleton(isLoading: isLoading)
                             
@@ -47,7 +50,11 @@ struct HomeView: View {
                     }
                 } else if selectedTab == 1 {
                     // Search Tab
-                    SearchScreen(onRestaurantClick: { _ in })
+                    SearchScreen(onRestaurantClick: { profile in
+                         withAnimation {
+                             selectedRestaurant = profile
+                         }
+                    })
                 } else if selectedTab == 2 {
                     // Bookings Tab
                     MyReservationsScreen()
@@ -59,7 +66,6 @@ struct HomeView: View {
                         if showSignup {
                             SignupScreen(
                                 onSignupSuccess: {
-                                    // After signup, switch back to login to let user sign in
                                     withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                                         showSignup = false
                                     }
@@ -70,40 +76,47 @@ struct HomeView: View {
                                     }
                                 }
                             )
-                            .transition(.asymmetric(
-                                insertion: .move(edge: .trailing).combined(with: .opacity),
-                                removal: .move(edge: .trailing).combined(with: .opacity)
-                            ))
                         } else {
                             LoginScreen(
-                                onLoginSuccess: {
-                                    // Auth state change will trigger re-render
-                                },
+                                onLoginSuccess: {},
                                 onSignup: {
                                     withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                                         showSignup = true
                                     }
                                 }
                             )
-                            .transition(.asymmetric(
-                                insertion: .move(edge: .leading).combined(with: .opacity),
-                                removal: .move(edge: .leading).combined(with: .opacity)
-                            ))
                         }
                     }
                 }
             }
-            .id(selectedTab)
-            .transition(.asymmetric(
-                insertion: .opacity.combined(with: .scale(scale: 0.95)),
-                removal: .opacity.combined(with: .scale(scale: 1.05))
-            ))
-            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: selectedTab)
-
-            .ignoresSafeArea(.all, edges: .bottom)
+            .id(selectedTab) // Simple transitions
             
-            // Bottom Tab Bar
-            BottomTabBar(selectedTab: $selectedTab)
+            // Restaurant Detail Overlay
+            if let restaurant = selectedRestaurant {
+                RestaurantDetailsScreenV2(
+                    onBack: {
+                        withAnimation {
+                            selectedRestaurant = nil
+                        }
+                    },
+                    onViewFullMenu: {
+                        // Handle full menu view if needed
+                        print("View full menu")
+                    },
+                    onDishClick: { dishId in
+                        print("Clicked dish: \(dishId)")
+                    },
+                    restaurantProfile: restaurant
+                )
+                .transition(.move(edge: .trailing))
+                .zIndex(100)
+            }
+            
+            // Bottom Tab Bar (Hide when detail is shown)
+            if selectedRestaurant == nil {
+                Color.clear.frame(height: 0) // Spacer
+                BottomTabBar(selectedTab: $selectedTab)
+            }
         }
     }
     

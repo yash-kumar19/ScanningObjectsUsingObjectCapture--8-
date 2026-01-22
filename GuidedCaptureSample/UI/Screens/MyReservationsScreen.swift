@@ -2,76 +2,36 @@ import SwiftUI
 
 struct MyReservationsScreen: View {
     @State private var activeTab: ReservationTab = .upcoming
+    @State private var reservations: [Reservation] = []
+    @State private var isLoading = false
+    
+    @ObservedObject private var supabase = SupabaseManager.shared
     
     enum ReservationTab {
         case upcoming, history
     }
     
-    let upcomingReservations = [
-        ReservationData(
-            id: "1",
-            restaurant: "The Golden Fork",
-            cuisine: "Fine Dining",
-            location: "Downtown Manhattan",
-            image: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400",
-            date: "Dec 28, 2024",
-            time: "7:30 PM",
-            guests: 4,
-            status: .confirmed
-        ),
-        ReservationData(
-            id: "2",
-            restaurant: "Sakura Sushi",
-            cuisine: "Japanese",
-            location: "Midtown",
-            image: "https://images.unsplash.com/photo-1579584425555-c3ce17fd4351?w=400",
-            date: "Dec 30, 2024",
-            time: "6:00 PM",
-            guests: 2,
-            status: .pending
-        ),
-        ReservationData(
-            id: "3",
-            restaurant: "La Bella Vista",
-            cuisine: "Italian",
-            location: "Upper East Side",
-            image: "https://images.unsplash.com/photo-1559339352-11d035aa65de?w=400",
-            date: "Jan 5, 2025",
-            time: "8:00 PM",
-            guests: 6,
-            status: .confirmed
-        )
-    ]
+    var upcomingReservations: [Reservation] {
+        reservations.filter {
+            // Simple filter: if status is not cancelled and date is future (mock logic for now, or use complex date comparison)
+            // For MVP, lets just say 'pending' or 'confirmed' are active/upcoming.
+            // Or better, compare dates.
+            guard let date = ISO8601DateFormatter().date(from: $0.reservation_date) else { return false }
+            return date > Date() && $0.status != "cancelled"
+        }
+    }
     
-    let pastReservations = [
-        PastReservationData(
-            id: "4",
-            restaurant: "Ocean Blue",
-            cuisine: "Seafood",
-            location: "Harbor District",
-            image: "https://images.unsplash.com/photo-1559339352-11d035aa65de?w=400",
-            date: "Nov 15, 2024",
-            time: "7:00 PM",
-            guests: 3,
-            rating: 5
-        ),
-        PastReservationData(
-            id: "5",
-            restaurant: "The Spice Route",
-            cuisine: "Indian",
-            location: "Chelsea",
-            image: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400",
-            date: "Nov 8, 2024",
-            time: "6:30 PM",
-            guests: 2,
-            rating: 4
-        )
-    ]
+    var pastReservations: [Reservation] {
+        reservations.filter {
+            guard let date = ISO8601DateFormatter().date(from: $0.reservation_date) else { return true }
+            return date <= Date() || $0.status == "cancelled"
+        }
+    }
     
     var body: some View {
         ZStack {
             // Background
-            Color.appBackground.ignoresSafeArea()
+            Theme.background.ignoresSafeArea()
             
             ScrollView {
                 VStack(spacing: 0) {
@@ -83,16 +43,62 @@ struct MyReservationsScreen: View {
                         .padding(.horizontal, 20)
                         .padding(.bottom, 20)
                     
-                    // Content
-                    if activeTab == .upcoming {
-                        upcomingSection
+                    if isLoading {
+                        ProgressView().tint(.white).padding(40)
+                    } else if reservations.isEmpty {
+                         Text("No reservations found.")
+                            .foregroundColor(.gray)
+                            .padding(40)
                     } else {
-                        historySection
+                        // Content
+                        if activeTab == .upcoming {
+                            if upcomingReservations.isEmpty {
+                                Text("No upcoming reservations.")
+                                    .foregroundColor(.gray)
+                                    .padding(40)
+                            } else {
+                                upcomingSection
+                            }
+                        } else {
+                            if pastReservations.isEmpty {
+                                Text("No past reservations.")
+                                    .foregroundColor(.gray)
+                                    .padding(40)
+                            } else {
+                                historySection
+                            }
+                        }
                     }
                     
                     // Bottom padding for tab bar
                     Color.clear.frame(height: 100)
                 }
+            }
+        }
+        .onAppear {
+            loadData()
+            supabase.startPolling()
+        }
+        .onDisappear {
+            supabase.stopPolling()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .supabaseDataDidUpdate)) { _ in
+            loadData()
+        }
+    }
+    
+    private func loadData() {
+        if reservations.isEmpty { isLoading = true }
+        Task {
+            do {
+                let items = try await supabase.fetchMyReservations()
+                await MainActor.run {
+                    self.reservations = items
+                    self.isLoading = false
+                }
+            } catch {
+                print("Error fetching reservations: \(error)")
+                await MainActor.run { self.isLoading = false }
             }
         }
     }
@@ -168,7 +174,7 @@ struct MyReservationsScreen: View {
     // MARK: - Upcoming Section
     private var upcomingSection: some View {
         VStack(spacing: 16) {
-            ForEach(upcomingReservations, id: \.id) { reservation in
+            ForEach(upcomingReservations) { reservation in
                 ReservationCard(reservation: reservation)
             }
         }
@@ -178,8 +184,9 @@ struct MyReservationsScreen: View {
     // MARK: - History Section
     private var historySection: some View {
         VStack(spacing: 16) {
-            ForEach(pastReservations, id: \.id) { reservation in
-                PastReservationCard(reservation: reservation)
+            ForEach(pastReservations) { reservation in
+                // Reusing ReservationCard for history for now, slightly different look if needed
+                 ReservationCard(reservation: reservation, isPast: true)
             }
         }
         .padding(.horizontal, 20)
@@ -228,14 +235,54 @@ struct TabButton: View {
 
 // MARK: - Reservation Card
 struct ReservationCard: View {
-    let reservation: ReservationData
+    let reservation: Reservation
+    var isPast: Bool = false
     @State private var isPressed = false
+    
+    var restaurantName: String {
+        reservation.owner?.restaurant_name ?? "Restaurant"
+    }
+    
+    var imageURL: URL? {
+        if let urlStr = reservation.owner?.avatar_url, !urlStr.isEmpty {
+            return URL(string: urlStr)
+        }
+        return URL(string: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400")
+    }
+    
+    var statusEnum: ReservationStatus {
+        switch reservation.status {
+            case "confirmed": return .confirmed
+            case "cancelled": return .cancelled
+            default: return .pending
+        }
+    }
+    
+    var formattedDate: String {
+        let formatter = ISO8601DateFormatter()
+        if let date = formatter.date(from: reservation.reservation_date) {
+            let displayFormatter = DateFormatter()
+            displayFormatter.dateStyle = .medium
+            return displayFormatter.string(from: date)
+        }
+        return reservation.reservation_date
+    }
+    
+    var formattedTime: String {
+        let formatter = ISO8601DateFormatter()
+        if let date = formatter.date(from: reservation.reservation_date) {
+            let displayFormatter = DateFormatter()
+            displayFormatter.timeStyle = .short
+            return displayFormatter.string(from: date)
+        }
+        return ""
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
                 // Restaurant Image
-                AsyncImage(url: URL(string: reservation.image)) { phase in
+                AsyncImage(url: imageURL) { phase in
                     switch phase {
                     case .success(let image):
                         image
@@ -243,6 +290,7 @@ struct ReservationCard: View {
                             .aspectRatio(contentMode: .fill)
                             .frame(width: 80, height: 80)
                             .clipShape(RoundedRectangle(cornerRadius: 16))
+                             .opacity(isPast ? 0.7 : 1)
                     default:
                         Rectangle()
                             .fill(Color.fromHex("1E293B"))
@@ -254,7 +302,7 @@ struct ReservationCard: View {
                 // Restaurant Info
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text(reservation.restaurant)
+                        Text(restaurantName)
                             .font(.system(size: 18, weight: .bold))
                             .foregroundColor(.white)
                             .lineLimit(1)
@@ -262,31 +310,31 @@ struct ReservationCard: View {
                         Spacer()
                         
                         // Status Badge
-                        Text(reservation.status.rawValue)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(reservation.status.color)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(reservation.status.color.opacity(0.2))
-                            .cornerRadius(8)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(reservation.status.color.opacity(0.4), lineWidth: 1)
-                            )
+                        if !isPast {
+                            Text(statusEnum.rawValue)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(statusEnum.color)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(statusEnum.color.opacity(0.2))
+                                .cornerRadius(8)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(statusEnum.color.opacity(0.4), lineWidth: 1)
+                                )
+                        } else {
+                            // Simple text for past
+                             Text(statusEnum.rawValue)
+                                .font(.system(size: 12))
+                                .foregroundColor(.gray)
+                        }
                     }
                     
-                    // Cuisine Badge
-                    Text(reservation.cuisine)
+                    // Cuisine Badge (Mocked or hidden if not available)
+                     Text("Fine Dining") // Placeholder
                         .font(.system(size: 12))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.black.opacity(0.7))
-                        .cornerRadius(6)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.white.opacity(0.15), lineWidth: 1)
-                        )
+                        .foregroundColor(Color.white.opacity(0.7))
+                        .hidden() // Hiding for now since we don't have it
                     
                     // Location
                     HStack(spacing: 4) {
@@ -294,7 +342,7 @@ struct ReservationCard: View {
                             .font(.system(size: 12))
                             .foregroundColor(Color.fromHex("64748B"))
                         
-                        Text(reservation.location)
+                        Text("View Location") // Placeholder
                             .font(.system(size: 12))
                             .foregroundColor(Color.fromHex("64748B"))
                             .lineLimit(1)
@@ -309,7 +357,7 @@ struct ReservationCard: View {
                     Image(systemName: "calendar")
                         .font(.system(size: 14))
                         .foregroundColor(Color.fromHex("3B82F6"))
-                    Text(reservation.date)
+                    Text(formattedDate)
                         .font(.system(size: 12))
                         .foregroundColor(Color.fromHex("94A3B8"))
                 }
@@ -318,7 +366,7 @@ struct ReservationCard: View {
                     Image(systemName: "clock")
                         .font(.system(size: 14))
                         .foregroundColor(Color.fromHex("3B82F6"))
-                    Text(reservation.time)
+                    Text(formattedTime)
                         .font(.system(size: 12))
                         .foregroundColor(Color.fromHex("94A3B8"))
                 }
@@ -327,7 +375,7 @@ struct ReservationCard: View {
                     Image(systemName: "person.2")
                         .font(.system(size: 14))
                         .foregroundColor(Color.fromHex("3B82F6"))
-                    Text("\(reservation.guests)")
+                    Text("\(reservation.guest_count)")
                         .font(.system(size: 12))
                         .foregroundColor(Color.fromHex("94A3B8"))
                 }
@@ -336,170 +384,56 @@ struct ReservationCard: View {
             .padding(.bottom, 16)
             
             // Action Buttons
-            HStack(spacing: 12) {
-                Button(action: {}) {
-                    HStack {
-                        Image(systemName: "eye")
-                            .font(.system(size: 14))
-                        Text("View Details")
-                            .font(.system(size: 14, weight: .medium))
-                    }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Color.white.opacity(0.05))
-                    .cornerRadius(12)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                    )
-                }
-                
-                Button(action: {}) {
-                    Text("Cancel")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Color.fromHex("EF4444"))
+            if !isPast {
+                HStack(spacing: 12) {
+                    Button(action: {}) {
+                        HStack {
+                            Image(systemName: "eye")
+                                .font(.system(size: 14))
+                            Text("View Details")
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(Color.fromHex("EF4444").opacity(0.15))
+                        .background(Color.white.opacity(0.05))
                         .cornerRadius(12)
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.fromHex("EF4444").opacity(0.3), lineWidth: 1)
+                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
                         )
+                    }
+                    
+                    if statusEnum != .cancelled {
+                         Button(action: {
+                             // Cancel Action... would need async func
+                         }) {
+                             Text("Cancel")
+                                 .font(.system(size: 14, weight: .medium))
+                                 .foregroundColor(Color.fromHex("EF4444"))
+                                 .frame(maxWidth: .infinity)
+                                 .padding(.vertical, 12)
+                                 .background(Color.fromHex("EF4444").opacity(0.15))
+                                 .cornerRadius(12)
+                                 .overlay(
+                                     RoundedRectangle(cornerRadius: 12)
+                                         .stroke(Color.fromHex("EF4444").opacity(0.3), lineWidth: 1)
+                                 )
+                         }
+                    }
                 }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
         }
-        .background(reservation.status.backgroundColor)
+        .background(statusEnum.backgroundColor)
         .cornerRadius(20)
         .overlay(
             RoundedRectangle(cornerRadius: 20)
-                .stroke(reservation.status.borderColor, lineWidth: 1)
+                .stroke(statusEnum.borderColor, lineWidth: 1)
         )
-        .shadow(color: reservation.status.shadowColor, radius: 20, x: 0, y: 8)
+        .shadow(color: statusEnum.shadowColor, radius: 20, x: 0, y: 8)
     }
-}
-
-// MARK: - Past Reservation Card
-struct PastReservationCard: View {
-    let reservation: PastReservationData
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            // Restaurant Image
-            AsyncImage(url: URL(string: reservation.image)) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 80, height: 80)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        .opacity(0.8)
-                default:
-                    Rectangle()
-                        .fill(Color.fromHex("1E293B"))
-                        .frame(width: 80, height: 80)
-                        .cornerRadius(16)
-                }
-            }
-            
-            // Restaurant Info
-            VStack(alignment: .leading, spacing: 8) {
-                Text(reservation.restaurant)
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                
-                Text(reservation.cuisine)
-                    .font(.system(size: 12))
-                    .foregroundColor(Color.fromHex("94A3B8"))
-                
-                // Date & Guests
-                HStack(spacing: 12) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "calendar")
-                            .font(.system(size: 12))
-                            .foregroundColor(Color.fromHex("64748B"))
-                        Text(reservation.date)
-                            .font(.system(size: 11))
-                            .foregroundColor(Color.fromHex("94A3B8"))
-                    }
-                    
-                    HStack(spacing: 4) {
-                        Image(systemName: "person.2")
-                            .font(.system(size: 12))
-                            .foregroundColor(Color.fromHex("64748B"))
-                        Text("\(reservation.guests)")
-                            .font(.system(size: 11))
-                            .foregroundColor(Color.fromHex("94A3B8"))
-                    }
-                }
-                
-                // Rating & Review Button
-                HStack {
-                    HStack(spacing: 2) {
-                        ForEach(0..<5) { index in
-                            Image(systemName: index < reservation.rating ? "star.fill" : "star")
-                                .font(.system(size: 14))
-                                .foregroundColor(index < reservation.rating ? Color.fromHex("FCD34D") : Color.white.opacity(0.2))
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: {}) {
-                        Text("View Review")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(Color.fromHex("8B5CF6"))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.fromHex("8B5CF6").opacity(0.2))
-                            .cornerRadius(10)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color.fromHex("8B5CF6").opacity(0.4), lineWidth: 1)
-                            )
-                    }
-                }
-            }
-        }
-        .padding(16)
-        .background(Color.fromHex("1E293B").opacity(0.6))
-        .cornerRadius(20)
-        .overlay(
-            RoundedRectangle(cornerRadius: 20)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-        )
-        .shadow(color: Color.fromHex("8B5CF6").opacity(0.1), radius: 20, x: 0, y: 8)
-    }
-}
-
-// MARK: - Models
-struct ReservationData {
-    let id: String
-    let restaurant: String
-    let cuisine: String
-    let location: String
-    let image: String
-    let date: String
-    let time: String
-    let guests: Int
-    let status: ReservationStatus
-}
-
-struct PastReservationData {
-    let id: String
-    let restaurant: String
-    let cuisine: String
-    let location: String
-    let image: String
-    let date: String
-    let time: String
-    let guests: Int
-    let rating: Int
 }
 
 enum ReservationStatus: String {

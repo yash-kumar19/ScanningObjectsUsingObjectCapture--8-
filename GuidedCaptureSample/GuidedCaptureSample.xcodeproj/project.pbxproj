@@ -7,12 +7,16 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4980388C2F20BE18007E5CC4 /* ModelDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4980388B2F20BE18007E5CC4 /* ModelDownloader.swift */; };
+		4980388E2F20BE20007E5CC4 /* ModelPreviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4980388D2F20BE20007E5CC4 /* ModelPreviewSheet.swift */; };
+		499881472EFE73C10026C844 /* BookingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 499881462EFE73C10026C844 /* BookingSheet.swift */; };
+		499881492EFE73D60026C844 /* LiquidGlassBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 499881482EFE73D60026C844 /* LiquidGlassBackground.swift */; };
+		4998814B2EFE73E70026C844 /* ObjectCaptureContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4998814A2EFE73E70026C844 /* ObjectCaptureContainer.swift */; };
 		49BFD3C02EF9B6C30076E189 /* OwnerReservationsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3A92EF9B6C30076E189 /* OwnerReservationsScreen.swift */; };
 		49BFD3C12EF9B6C30076E189 /* SignupScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD39C2EF9B6C30076E189 /* SignupScreen.swift */; };
 		49BFD3C22EF9B6C30076E189 /* RoleSelectionScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3B72EF9B6C30076E189 /* RoleSelectionScreen.swift */; };
 		49BFD3C32EF9B6C30076E189 /* MenuScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3B12EF9B6C30076E189 /* MenuScreen.swift */; };
 		49BFD3C42EF9B6C30076E189 /* MenuViewerScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3B22EF9B6C30076E189 /* MenuViewerScreen.swift */; };
-		49BFD3C52EF9B6C30076E189 /* Preview3DView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD38B2EF9B6C30076E189 /* Preview3DView.swift */; };
 		49BFD3C62EF9B6C30076E189 /* RestaurantOnboardingScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3AD2EF9B6C30076E189 /* RestaurantOnboardingScreen.swift */; };
 		49BFD3C72EF9B6C30076E189 /* SkeletonModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3912EF9B6C30076E189 /* SkeletonModifier.swift */; };
 		49BFD3C82EF9B6C30076E189 /* Toast.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3942EF9B6C30076E189 /* Toast.swift */; };
@@ -61,6 +65,7 @@
 		49BFD3F42EF9B6C30076E189 /* ProfileScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3B42EF9B6C30076E189 /* ProfileScreen.swift */; };
 		49BFD3F52EF9B6C30076E189 /* FilterChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3842EF9B6C30076E189 /* FilterChip.swift */; };
 		49BFD3F62EF9B6C30076E189 /* GlassCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFD3862EF9B6C30076E189 /* GlassCard.swift */; };
+		49F178122F02948E00A7BDA9 /* ARViewContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49F178112F02948E00A7BDA9 /* ARViewContainer.swift */; };
 		648C27652BFEA9EE002DBFF1 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 648C27642BFEA9EE002DBFF1 /* README.md */; };
 		64A07DC62BFE7CCB00FDE113 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 64A07DC52BFE7CCB00FDE113 /* Preview Assets.xcassets */; };
 		64A07DE42BFE7CDA00FDE113 /* OnboardingTutorialView+LocalizedString.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64A07DDA2BFE7CDA00FDE113 /* OnboardingTutorialView+LocalizedString.swift */; };
@@ -109,6 +114,11 @@
 
 /* Begin PBXFileReference section */
 		0A2296AE533E6CFA4C7FD196 /* LICENSE.txt */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text; path = LICENSE.txt; sourceTree = "<group>"; };
+		4980388B2F20BE18007E5CC4 /* ModelDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDownloader.swift; sourceTree = "<group>"; };
+		4980388D2F20BE20007E5CC4 /* ModelPreviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPreviewSheet.swift; sourceTree = "<group>"; };
+		499881462EFE73C10026C844 /* BookingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookingSheet.swift; sourceTree = "<group>"; };
+		499881482EFE73D60026C844 /* LiquidGlassBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidGlassBackground.swift; sourceTree = "<group>"; };
+		4998814A2EFE73E70026C844 /* ObjectCaptureContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObjectCaptureContainer.swift; sourceTree = "<group>"; };
 		49BFD3802EF9B6C30076E189 /* BottomTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomTabBar.swift; sourceTree = "<group>"; };
 		49BFD3812EF9B6C30076E189 /* CategoryTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryTab.swift; sourceTree = "<group>"; };
 		49BFD3822EF9B6C30076E189 /* DishCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DishCard.swift; sourceTree = "<group>"; };
@@ -120,7 +130,6 @@
 		49BFD3882EF9B6C30076E189 /* GlowBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlowBackground.swift; sourceTree = "<group>"; };
 		49BFD3892EF9B6C30076E189 /* LoginButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginButton.swift; sourceTree = "<group>"; };
 		49BFD38A2EF9B6C30076E189 /* Model3DView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Model3DView.swift; sourceTree = "<group>"; };
-		49BFD38B2EF9B6C30076E189 /* Preview3DView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preview3DView.swift; sourceTree = "<group>"; };
 		49BFD38C2EF9B6C30076E189 /* PrimaryButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimaryButton.swift; sourceTree = "<group>"; };
 		49BFD38D2EF9B6C30076E189 /* RestaurantCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestaurantCard.swift; sourceTree = "<group>"; };
 		49BFD38E2EF9B6C30076E189 /* ScaleButtonStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaleButtonStyle.swift; sourceTree = "<group>"; };
@@ -163,6 +172,7 @@
 		49BFD3BB2EF9B6C30076E189 /* AppColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColors.swift; sourceTree = "<group>"; };
 		49BFD3BC2EF9B6C30076E189 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		49BFD3BD2EF9B6C30076E189 /* ViewExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewExtensions.swift; sourceTree = "<group>"; };
+		49F178112F02948E00A7BDA9 /* ARViewContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARViewContainer.swift; sourceTree = "<group>"; };
 		648C27642BFEA9EE002DBFF1 /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; name = README.md; path = ../README.md; sourceTree = "<group>"; };
 		64A07DBB2BFE7CCA00FDE113 /* GuidedCaptureSample.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GuidedCaptureSample.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		64A07DC52BFE7CCB00FDE113 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
@@ -226,6 +236,11 @@
 		49BFD3952EF9B6C30076E189 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				4980388D2F20BE20007E5CC4 /* ModelPreviewSheet.swift */,
+				4980388B2F20BE18007E5CC4 /* ModelDownloader.swift */,
+				49F178112F02948E00A7BDA9 /* ARViewContainer.swift */,
+				499881482EFE73D60026C844 /* LiquidGlassBackground.swift */,
+				499881462EFE73C10026C844 /* BookingSheet.swift */,
 				49BFD3802EF9B6C30076E189 /* BottomTabBar.swift */,
 				49BFD3812EF9B6C30076E189 /* CategoryTab.swift */,
 				49BFD3822EF9B6C30076E189 /* DishCard.swift */,
@@ -237,7 +252,6 @@
 				49BFD3882EF9B6C30076E189 /* GlowBackground.swift */,
 				49BFD3892EF9B6C30076E189 /* LoginButton.swift */,
 				49BFD38A2EF9B6C30076E189 /* Model3DView.swift */,
-				49BFD38B2EF9B6C30076E189 /* Preview3DView.swift */,
 				49BFD38C2EF9B6C30076E189 /* PrimaryButton.swift */,
 				49BFD38D2EF9B6C30076E189 /* RestaurantCard.swift */,
 				49BFD38E2EF9B6C30076E189 /* ScaleButtonStyle.swift */,
@@ -286,6 +300,7 @@
 		49BFD3AE2EF9B6C30076E189 /* Owner */ = {
 			isa = PBXGroup;
 			children = (
+				4998814A2EFE73E70026C844 /* ObjectCaptureContainer.swift */,
 				49BFD39E2EF9B6C30076E189 /* AddEditDishScreen.swift */,
 				49BFD39F2EF9B6C30076E189 /* BecomeOwnerScreen.swift */,
 				49BFD3A02EF9B6C30076E189 /* CaptureSetupScreen.swift */,
@@ -558,7 +573,6 @@
 				49BFD3C22EF9B6C30076E189 /* RoleSelectionScreen.swift in Sources */,
 				49BFD3C32EF9B6C30076E189 /* MenuScreen.swift in Sources */,
 				49BFD3C42EF9B6C30076E189 /* MenuViewerScreen.swift in Sources */,
-				49BFD3C52EF9B6C30076E189 /* Preview3DView.swift in Sources */,
 				49BFD3C62EF9B6C30076E189 /* RestaurantOnboardingScreen.swift in Sources */,
 				49BFD3C72EF9B6C30076E189 /* SkeletonModifier.swift in Sources */,
 				49BFD3C82EF9B6C30076E189 /* Toast.swift in Sources */,
@@ -571,6 +585,7 @@
 				49BFD3CF2EF9B6C30076E189 /* CaptureSetupScreen.swift in Sources */,
 				49BFD3D02EF9B6C30076E189 /* HomeView.swift in Sources */,
 				49BFD3D12EF9B6C30076E189 /* OwnerMenuScreen.swift in Sources */,
+				4998814B2EFE73E70026C844 /* ObjectCaptureContainer.swift in Sources */,
 				49BFD3D22EF9B6C30076E189 /* AddEditDishScreen.swift in Sources */,
 				49BFD3D32EF9B6C30076E189 /* OnboardingSuccessScreen.swift in Sources */,
 				49BFD3D42EF9B6C30076E189 /* GlowBackground.swift in Sources */,
@@ -585,16 +600,19 @@
 				49BFD3DE2EF9B6C30076E189 /* ScaleButtonStyle.swift in Sources */,
 				49BFD3DF2EF9B6C30076E189 /* SupabaseConfig.swift in Sources */,
 				49BFD3E02EF9B6C30076E189 /* GhostButton.swift in Sources */,
+				499881492EFE73D60026C844 /* LiquidGlassBackground.swift in Sources */,
 				49BFD3E12EF9B6C30076E189 /* RestaurantDetailsScreen.swift in Sources */,
 				49BFD3E22EF9B6C30076E189 /* PrimaryButton.swift in Sources */,
 				49BFD3E32EF9B6C30076E189 /* OwnerTabView.swift in Sources */,
 				49BFD3E42EF9B6C30076E189 /* OwnerSignupScreen.swift in Sources */,
 				49BFD3E52EF9B6C30076E189 /* RestaurantCard.swift in Sources */,
 				49BFD3E62EF9B6C30076E189 /* OwnerDashboardScreen.swift in Sources */,
+				4980388E2F20BE20007E5CC4 /* ModelPreviewSheet.swift in Sources */,
 				49BFD3E72EF9B6C30076E189 /* ViewExtensions.swift in Sources */,
 				49BFD3E82EF9B6C30076E189 /* OwnerLoginScreen.swift in Sources */,
 				49BFD3E92EF9B6C30076E189 /* ManualCaptureView.swift in Sources */,
 				49BFD3EA2EF9B6C30076E189 /* OwnerGeneratorScreen.swift in Sources */,
+				499881472EFE73C10026C844 /* BookingSheet.swift in Sources */,
 				49BFD3EB2EF9B6C30076E189 /* GlassInput.swift in Sources */,
 				49BFD3EC2EF9B6C30076E189 /* SupabaseManager.swift in Sources */,
 				49BFD3ED2EF9B6C30076E189 /* DishCard.swift in Sources */,
@@ -616,7 +634,9 @@
 				64A07E152BFE9E0F00FDE113 /* ContentView.swift in Sources */,
 				64A07E162BFE9E0F00FDE113 /* PlayerView.swift in Sources */,
 				64A07E172BFE9E0F00FDE113 /* ModelView.swift in Sources */,
+				4980388C2F20BE18007E5CC4 /* ModelDownloader.swift in Sources */,
 				8DB8EB4E2C0A5945004F3E19 /* TopOverlayButtons.swift in Sources */,
+				49F178122F02948E00A7BDA9 /* ARViewContainer.swift in Sources */,
 				64A07E182BFE9E0F00FDE113 /* CaptureOverlayView.swift in Sources */,
 				64A07E192BFE9E0F00FDE113 /* OnboardingView.swift in Sources */,
 				64A07E1A2BFE9E0F00FDE113 /* PrimaryView.swift in Sources */,

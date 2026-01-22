@@ -1,10 +1,12 @@
 import SwiftUI
 
 struct SearchScreen: View {
-    var onRestaurantClick: (String) -> Void = { _ in }
+    var onRestaurantClick: (Profile) -> Void // Changed to accept Profile
     
     @State private var searchQuery: String = ""
     @State private var selectedCuisine: String = "all"
+    @State private var restaurants: [Profile] = []
+    @State private var isLoading = false
     
     let cuisines = [
         (id: "all", label: "All", icon: "sparkles"),
@@ -13,44 +15,19 @@ struct SearchScreen: View {
         (id: "healthy", label: "Healthy", icon: "leaf")
     ]
     
-    let restaurants = [
-        (
-            id: "1",
-            name: "The Golden Fork",
-            rating: 4.8,
-            cuisine: "Fine Dining",
-            location: "Downtown",
-            priceRange: "$$$"
-        ),
-        (
-            id: "2",
-            name: "Sakura Sushi Bar",
-            rating: 4.9,
-            cuisine: "Japanese",
-            location: "Midtown",
-            priceRange: "$$"
-        ),
-        (
-            id: "3",
-            name: "Bella Italia",
-            rating: 4.7,
-            cuisine: "Italian",
-            location: "West End",
-            priceRange: "$$"
-        ),
-        (
-            id: "4",
-            name: "Prime Steakhouse",
-            rating: 4.9,
-            cuisine: "Steakhouse",
-            location: "Financial District",
-            priceRange: "$$$"
-        )
-    ]
+    var filteredRestaurants: [Profile] {
+        if searchQuery.isEmpty {
+            return restaurants
+        } else {
+            return restaurants.filter {
+                ($0.restaurant_name ?? "").localizedCaseInsensitiveContains(searchQuery)
+            }
+        }
+    }
     
     var body: some View {
         ZStack {
-            Color.appBackground.ignoresSafeArea()
+            Theme.background.ignoresSafeArea()
             
             ScrollView {
                 VStack(spacing: 0) {
@@ -92,27 +69,55 @@ struct SearchScreen: View {
                     }
                     .padding(.top, 20)
                     
-                    // Restaurant List
-                    VStack(spacing: 16) {
-                        ForEach(restaurants, id: \.id) { restaurant in
-                            Button(action: {
-                                onRestaurantClick(restaurant.id)
-                            }) {
-                                DiscoverRestaurantCard(
-                                    name: restaurant.name,
-                                    rating: restaurant.rating,
-                                    cuisine: restaurant.cuisine,
-                                    location: restaurant.location,
-                                    priceRange: restaurant.priceRange
-                                )
+                    if isLoading {
+                        ProgressView().tint(.white).padding(40)
+                    } else if filteredRestaurants.isEmpty {
+                         Text(restaurants.isEmpty ? "No restaurants found." : "No matches found.")
+                             .foregroundColor(.gray)
+                             .padding(40)
+                    } else {
+                        // Restaurant List
+                        VStack(spacing: 16) {
+                            ForEach(filteredRestaurants) { restaurant in
+                                Button(action: {
+                                    onRestaurantClick(restaurant)
+                                }) {
+                                    DiscoverRestaurantCard(
+                                        name: restaurant.restaurant_name ?? "Unnamed",
+                                        logoURL: restaurant.logo_url ?? restaurant.avatar_url,
+                                        rating: 4.8, // Mock
+                                        cuisine: restaurant.cuisine ?? "Fine Dining",
+                                        location: restaurant.city ?? "Downtown",
+                                        priceRange: "$$$" // Mock
+                                    )
+                                }
+                                .buttonStyle(DiscoverScaleButtonStyle())
                             }
-                            .buttonStyle(ScaleButtonStyle())
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
+                        .padding(.bottom, 120)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
-                    .padding(.bottom, 120)
                 }
+            }
+        }
+        .onAppear {
+            loadData()
+        }
+    }
+    
+    private func loadData() {
+        if restaurants.isEmpty { isLoading = true }
+        Task {
+            do {
+                let items = try await SupabaseManager.shared.fetchRestaurants()
+                await MainActor.run {
+                    self.restaurants = items
+                    self.isLoading = false
+                }
+            } catch {
+                print("Error fetching restaurants: \(error)")
+                await MainActor.run { self.isLoading = false }
             }
         }
     }
@@ -121,6 +126,7 @@ struct SearchScreen: View {
 // Restaurant Card for Discover Screen
 struct DiscoverRestaurantCard: View {
     let name: String
+    let logoURL: String?
     let rating: Double
     let cuisine: String
     let location: String
@@ -132,7 +138,7 @@ struct DiscoverRestaurantCard: View {
             // Image
             ZStack(alignment: .topTrailing) {
                 // Restaurant image with fallback gradient
-                AsyncImage(url: URL(string: getRestaurantImage(name: name))) { phase in
+                AsyncImage(url: URL(string: logoURL ?? "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop")) { phase in
                     switch phase {
                     case .empty:
                         // Loading placeholder
@@ -266,23 +272,10 @@ struct DiscoverViewMenuButton: View {
     }
 }
 
-// Helper function to get restaurant images
-func getRestaurantImage(name: String) -> String {
-    switch name {
-    case "The Golden Fork":
-        return "https://images.unsplash.com/photo-1744776411214-31209006a0f6?w=800&h=600&fit=crop"
-    case "Sakura Sushi Bar":
-        return "https://images.unsplash.com/photo-1696449241254-11cf7f18ce32?w=800&h=600&fit=crop"
-    case "Bella Italia":
-        return "https://images.unsplash.com/photo-1532117472055-4d0734b51f31?w=800&h=600&fit=crop"
-    case "Prime Steakhouse":
-        return "https://images.unsplash.com/photo-1706650616334-97875fae8521?w=800&h=600&fit=crop"
-    default:
-        return "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop"
-    }
-}
+// Helper function removed as we now use real data
 
-struct ScaleButtonStyle: ButtonStyle {
+
+struct DiscoverScaleButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
@@ -291,5 +284,5 @@ struct ScaleButtonStyle: ButtonStyle {
 }
 
 #Preview {
-    SearchScreen()
+    SearchScreen(onRestaurantClick: { _ in })
 }

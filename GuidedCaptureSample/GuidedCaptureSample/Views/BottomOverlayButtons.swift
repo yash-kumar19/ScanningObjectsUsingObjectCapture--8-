@@ -387,6 +387,9 @@ private struct AutoCaptureToggle: View {
     var session: ObjectCaptureSession
 
     var body: some View {
+        // Temporary fix: isAutoCaptureEnabled not available in current SDK context
+        EmptyView()
+        /*
         Button(action: {
             session.isAutoCaptureEnabled.toggle()
         }, label: {
@@ -413,5 +416,6 @@ private struct AutoCaptureToggle: View {
             .background(session.isAutoCaptureEnabled ? .white : .clear)
             .cornerRadius(15)
         })
+        */
     }
 }

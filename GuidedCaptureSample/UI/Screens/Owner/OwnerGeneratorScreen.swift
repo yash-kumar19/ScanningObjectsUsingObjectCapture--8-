@@ -34,11 +34,12 @@ struct GeneratorGlassCard<Content: View>: View {
             .padding(padding)
             .frame(maxWidth: .infinity)
             .background(
-                isSelected ? Color(hex: "2b7fff").opacity(0.15) : Color.white.opacity(0.05)
+                isSelected ? AnyShapeStyle(Color(hex: "2b7fff").opacity(0.15)) : AnyShapeStyle(Color(hex: "1e293b")),
+                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
             )
-            .cornerRadius(16)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(
                         isSelected ? Color(hex: "2b7fff").opacity(0.4) :
                             (isDashed ? Color(hex: "2b7fff").opacity(0.3) : Color.white.opacity(0.08)),
@@ -54,18 +55,16 @@ struct GeneratorGlassCard<Content: View>: View {
 struct OwnerGeneratorScreen: View {
     @Environment(AppDataModel.self) var appModel
     
-    @State private var detailLevel = "high"
+
     @State private var outputFormat = "lszg" // default to glb/usdz area?
     @State private var showCaptureSetup = false
-    @State private var showCaptureFlow = false
+    @State private var isCapturePresented = false
+    @State private var showModelPreview = false
     @State private var showAddDish = false
     @State private var capturedModelURL: URL?
+    @State private var isRetaking = false // Logic state to track user intent
     
-    let detailLevels = [
-        (value: "low", label: "Low", description: "Fast, smaller file"),
-        (value: "medium", label: "Medium", description: "Balanced quality"),
-        (value: "high", label: "High", description: "Best quality")
-    ]
+
     
     let outputFormats = [
         (value: "glb", label: ".GLB", description: "Universal format"),
@@ -75,35 +74,8 @@ struct OwnerGeneratorScreen: View {
     
     var body: some View {
         ZStack {
-            // 1. Background Gradient
-            LinearGradient(
-                colors: [
-                    Color(hex: "050505"),
-                    Color(hex: "0B0F1A"),
-                    Color(hex: "111827")
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-            
-            // 2. Background Glow Blob
-            VStack {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [Color(hex: "8b5cf6").opacity(0.4), Color(hex: "8b5cf6").opacity(0)],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: 250
-                        )
-                    )
-                    .frame(width: 380, height: 380)
-                    .blur(radius: 100)
-                    .offset(y: -250)
-                Spacer()
-            }
-            .ignoresSafeArea()
+            // 1. Unified Liquid Glass Background
+            Theme.background.ignoresSafeArea()
             
             // 3. Content
             ScrollView {
@@ -232,38 +204,7 @@ struct OwnerGeneratorScreen: View {
                         }
                     }
                     
-                    // Model Detail Level
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "gearshape.fill")
-                            .foregroundColor(Color.white.opacity(0.6))
-                            Text("Model Detail Level")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                        }
-                        
-                        VStack(spacing: 8) {
-                            ForEach(detailLevels, id: \.value) { level in
-                                GeneratorGlassCard(
-                                    padding: 16,
-                                    isSelected: detailLevel == level.value,
-                                    action: { detailLevel = level.value }
-                                ) {
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(level.label)
-                                                .font(.system(size: 16, weight: .medium))
-                                                .foregroundColor(.white)
-                                            Text(level.description)
-                                                .font(.system(size: 14))
-                                                .foregroundColor(Color.white.opacity(0.6))
-                                        }
-                                        Spacer()
-                                    }
-                                }
-                            }
-                        }
-                    }
+
                     
                     // Output Format
                     VStack(alignment: .leading, spacing: 12) {
@@ -319,7 +260,7 @@ struct OwnerGeneratorScreen: View {
                     GeneratorGlassCard(padding: 16) {
                         HStack(alignment: .top, spacing: 12) {
                             Text("💡")
-                                .font(.system(size: 20))
+                            .font(.system(size: 20))
                             Text("Pro Tips: Use good lighting, rotate smoothly, and keep the dish centered for best results. Processing typically takes 5-10 minutes.")
                                 .font(.system(size: 14))
                                 .foregroundColor(Color.white.opacity(0.7))
@@ -334,40 +275,120 @@ struct OwnerGeneratorScreen: View {
                 .frame(maxWidth: 500)
             }
         }
-        .sheet(isPresented: $showCaptureSetup) {
-            CaptureSetupScreen(detailLevel: detailLevel, onStartCapture: {
-                // User started capture
-                showCaptureSetup = false
-                // Delay slightly to allow sheet dismiss
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    appModel.state = .ready // Triggers session creation
-                    showCaptureFlow = true
-                }
-            })
+        .sheet(isPresented: $showCaptureSetup, onDismiss: {
+            guard let url = capturedModelURL,
+                  FileManager.default.fileExists(atPath: url.path)
+            else {
+                return
+            }
+            showModelPreview = true
+        }) {
+            CaptureSetupScreen(modelURL: $capturedModelURL)
+                .environment(appModel)
         }
-        .fullScreenCover(isPresented: $showCaptureFlow) {
+        .onChange(of: appModel.state) { _, newState in
+             if newState == .completed {
+                 // Close capture flow when pipeline is complete
+                 isCapturePresented = false
+                 // ✅ APPLE-PREFERRED: Consume the URL already set by ReconstructionPrimaryView
+                 // No need to reconstruct paths - localModelURL was set via setLocalModelURL()
+                 if let url = appModel.localModelURL {
+                      self.capturedModelURL = url
+                      print("✅ Captured model URL from AppDataModel: \(url.path)")
+                 }
+             }
+        }
+        .fullScreenCover(isPresented: $isCapturePresented) {
             CaptureFlowContainer()
         }
-        .onChange(of: appModel.state) {
-            if appModel.state == .completed {
-                // Capture finished and model processed
-                if let modelURL = appModel.captureFolderManager?.modelsFolder.appendingPathComponent("model.usdz") {
-                    self.capturedModelURL = modelURL
-                }
-                showCaptureFlow = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    showAddDish = true
-                }
+        .onChange(of: isCapturePresented) { wasShowing, isShowing in
+            // When capture flow dismisses, if completed, show Preview
+            if wasShowing && !isShowing && appModel.state == .completed {
+                showModelPreview = true
             }
+        }
+        .fullScreenCover(isPresented: $showModelPreview) {
+            if let url = capturedModelURL {
+                 ZStack(alignment: .bottom) {
+                     ModelView(modelFile: url, endCaptureCallback: {
+                         // Callback if user swipes down or closes via built-in controls (if any)
+                         // Default to "Add" path if they just close it? Or just dismiss?
+                         showModelPreview = false
+                     })
+                     .ignoresSafeArea()
+                     
+                     // Overlay Controls
+                     VStack {
+                         Spacer()
+                         HStack(spacing: 16) {
+                             // Retake Button
+                             Button(action: {
+                                 isRetaking = true
+                                 showModelPreview = false
+                             }) {
+                                 HStack {
+                                     Image(systemName: "arrow.counterclockwise")
+                                     Text("Retake")
+                                 }
+                                 .font(.system(size: 16, weight: .semibold))
+                                 .foregroundColor(.white)
+                                 .frame(maxWidth: .infinity)
+                                 .padding(.vertical, 16)
+                                 .background(Color(hex: "1E293B"))
+                                 .cornerRadius(12)
+                             }
+                             
+                             // Add to Menu Button
+                             Button(action: {
+                                 isRetaking = false // Proceed
+                                 showModelPreview = false
+                             }) {
+                                 HStack {
+                                     Image(systemName: "plus.circle.fill")
+                                     Text("Add to Menu")
+                                 }
+                                 .font(.system(size: 16, weight: .semibold))
+                                 .foregroundColor(.white)
+                                 .frame(maxWidth: .infinity)
+                                 .padding(.vertical, 16)
+                                 .background(Color(hex: "3B82F6"))
+                                 .cornerRadius(12)
+                             }
+                         }
+                         .padding(20)
+                         .background(
+                             LinearGradient(colors: [Color.black.opacity(0.8), Color.clear], startPoint: .bottom, endPoint: .top)
+                         )
+                     }
+                     .zIndex(100)
+                 }
+            }
+        }
+        .onChange(of: showModelPreview) { wasShowing, isShowing in
+             // When preview dismisses, handle navigation based on intent
+             if wasShowing && !isShowing {
+                 if isRetaking {
+                     // Go back to capture
+                     // appModel.state is likely .completed. 
+                     // Setting showCaptureSetup = true might not be enough if state is stuck.
+                     // But CaptureSetupScreen handles state init.
+                     showCaptureSetup = true 
+                 } else {
+                     // Proceed to Add Dish
+                     showAddDish = true
+                 }
+             }
         }
         .fullScreenCover(isPresented: $showAddDish) {
             AddEditDishScreen(
-                onBack: { showAddDish = false },
+                onBack: { 
+                    showAddDish = false 
+                },
                 onSave: {
-                    // TODO: Implement save logic or refresh list
                     showAddDish = false
                 },
-                initialModelURL: capturedModelURL
+                dishId: nil,
+                prefilledModelURL: capturedModelURL
             )
         }
     }
@@ -376,6 +397,8 @@ struct OwnerGeneratorScreen: View {
 // Wrapper to switch between Capture and Reconstruction views based on AppModel state
 struct CaptureFlowContainer: View {
     @Environment(AppDataModel.self) var appModel
+    
+    @Environment(\.dismiss) var dismiss
     
     var body: some View {
         Group {
@@ -386,10 +409,13 @@ struct CaptureFlowContainer: View {
                     ProgressView("Initializing Capture Session...")
                         .preferredColorScheme(.dark)
                 }
-            } else if appModel.state == .reconstructing || appModel.state == .prepareToReconstruct {
+            } else if appModel.state == .reconstructing || appModel.state == .prepareToReconstruct || appModel.state == .viewing {
                 if let folder = appModel.captureFolderManager {
-                    // Assuming standard filename for simplicity, or we can use dynamic name
-                    ReconstructionPrimaryView(outputFile: folder.modelsFolder.appendingPathComponent("model.usdz"))
+                    // ✅ APPLE-PREFERRED: Use captureSessionID for predictable, unique filename
+                    let outputFile = folder.modelsFolder.appendingPathComponent("\(appModel.captureSessionID.uuidString).usdz")
+                    ReconstructionPrimaryView(outputFile: outputFile, onDismiss: {
+                        dismiss()
+                    })
                 } else {
                      ProgressView("Preparing Reconstruction...")
                         .preferredColorScheme(.dark)

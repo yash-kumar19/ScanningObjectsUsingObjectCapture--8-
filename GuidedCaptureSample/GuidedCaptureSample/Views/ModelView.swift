@@ -11,37 +11,34 @@ import os
 
 private let logger = Logger(subsystem: GuidedCaptureSampleApp.subsystem, category: "ModelView")
 
-struct ModelView: View {
+// Using UIViewControllerRepresentable to wrap QLPreviewController directly
+struct ModelView: UIViewControllerRepresentable {
     let modelFile: URL
     let endCaptureCallback: () -> Void
 
-    var body: some View {
-        ARQuickLookController(modelFile: modelFile, endCaptureCallback: endCaptureCallback)
-    }
-}
-
-private struct ARQuickLookController: UIViewControllerRepresentable {
-    let modelFile: URL
-    let endCaptureCallback: () -> Void
-
-    func makeUIViewController(context: Context) -> QLPreviewControllerWrapper {
-        let controller = QLPreviewControllerWrapper()
-        controller.qlvc.dataSource = context.coordinator
-        controller.qlvc.delegate = context.coordinator
+    func makeUIViewController(context: Context) -> QLPreviewController {
+        let controller = QLPreviewController()
+        controller.dataSource = context.coordinator
+        controller.delegate = context.coordinator
+        // QLPreviewController usually presents modally, but in fullScreenCover we might want to ensure it feels right.
+        // The controller itself is a view controller.
         return controller
     }
 
-    func makeCoordinator() -> ARQuickLookController.Coordinator {
+    func updateUIViewController(_ uiViewController: QLPreviewController, context: Context) {
+        // Force refresh if needed
+        uiViewController.reloadData()
+    }
+
+    func makeCoordinator() -> Coordinator {
         return Coordinator(parent: self)
     }
 
-    func updateUIViewController(_ uiViewController: QLPreviewControllerWrapper, context: Context) {}
-
     class Coordinator: NSObject, QLPreviewControllerDataSource, QLPreviewControllerDelegate {
-        let parent: ARQuickLookController
+        let parent: ModelView
 
-        init(parent inParent: ARQuickLookController) {
-            parent = inParent
+        init(parent: ModelView) {
+            self.parent = parent
         }
 
         func numberOfPreviewItems(in controller: QLPreviewController) -> Int {
@@ -51,23 +48,15 @@ private struct ARQuickLookController: UIViewControllerRepresentable {
         func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
             return parent.modelFile as QLPreviewItem
         }
-
+        
+        func previewControllerDidDismiss(_ controller: QLPreviewController) {
+             logger.log("Quick Look dismissed by user interaction")
+             parent.endCaptureCallback()
+        }
+        
+        // This is not always called if wrapped in SwiftUI sheet/cover, but good to have
         func previewControllerWillDismiss(_ controller: QLPreviewController) {
             logger.log("Exiting ARQL ...")
-            parent.endCaptureCallback()
-        }
-    }
-}
-
-private class QLPreviewControllerWrapper: UIViewController {
-    let qlvc = QLPreviewController()
-    var qlPresented = false
-
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        if !qlPresented {
-            present(qlvc, animated: false, completion: nil)
-            qlPresented = true
         }
     }
 }

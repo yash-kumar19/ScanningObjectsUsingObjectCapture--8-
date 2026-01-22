@@ -36,10 +36,12 @@ struct DashboardCard<Content: View>: View {
     var body: some View {
         content
             .padding(16)
-            .background(Color.white.opacity(0.05))
-            .cornerRadius(16)
+            .background(
+                Color(hex: "1e293b"), // Dark non-glass background
+                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+            )
             .overlay(
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(Color.white.opacity(0.1), lineWidth: 1)
             )
             .shadow(color: Color(hex: "2b7fff").opacity(0.15), radius: 32, x: 0, y: 8)
@@ -113,35 +115,7 @@ struct OwnerDashboardScreen: View {
     
     var body: some View {
         ZStack {
-            // 1. Background Gradient
-            LinearGradient(
-                colors: [
-                    Color(hex: "050505"),
-                    Color(hex: "0B0F1A"),
-                    Color(hex: "111827")
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-            
-            // 2. Background Glow Blob
-            VStack {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [Color(hex: "2b7fff").opacity(0.4), Color(hex: "2b7fff").opacity(0)],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: 250
-                        )
-                    )
-                    .frame(width: 380, height: 380)
-                    .blur(radius: 100)
-                    .offset(y: -250)
-                Spacer()
-            }
-            .ignoresSafeArea()
+            Theme.background.ignoresSafeArea()
             
             // 3. Content
             GeometryReader { geometry in

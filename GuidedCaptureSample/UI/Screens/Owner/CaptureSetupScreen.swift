@@ -2,8 +2,10 @@ import SwiftUI
 
 struct CaptureSetupScreen: View {
     @Environment(\.dismiss) var dismiss
-    var detailLevel: String = "medium"
-    var onStartCapture: (() -> Void)? = nil
+    @Environment(AppDataModel.self) var appModel
+    
+    @Binding var modelURL: URL?
+    @State private var showCapture = false
     
     var body: some View {
         NavigationStack {
@@ -69,8 +71,7 @@ struct CaptureSetupScreen: View {
                     
                     // Start Button
                     Button(action: {
-                        dismiss()
-                        onStartCapture?()
+                        showCapture = true
                     }) {
                         Text("Start Capture")
                             .font(.system(size: 18, weight: .semibold))
@@ -85,6 +86,22 @@ struct CaptureSetupScreen: View {
                     .padding(.bottom, 20)
                 }
             }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                            .foregroundColor(.white)
+                    }
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showCapture) {
+            ObjectCaptureContainer(onCaptureComplete: { url in
+                modelURL = url
+                dismiss() // Dismiss setup screen and return to Add/Edit
+            })
+            .environment(appModel)
         }
     }
 }

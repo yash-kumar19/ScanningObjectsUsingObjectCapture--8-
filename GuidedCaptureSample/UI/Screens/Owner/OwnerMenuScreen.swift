@@ -1,21 +1,15 @@
 import SwiftUI
 
 // MARK: - Data Models
-struct MenuDish: Identifiable {
-    let id: String
-    let name: String
-    let description: String
-    let price: String
-    let category: String
-    let status: String // "published", "draft", "processing"
-    let imageURL: String
-}
+// Using Dish model from SupabaseManager
+
 
 // MARK: - Helper Components
 struct MenuDishCard: View {
-    let dish: MenuDish
+    let dish: Dish
     let onEdit: () -> Void
     let onDelete: () -> Void
+    let onPreview: () -> Void
     
     var body: some View {
         VStack(spacing: 0) {
@@ -23,7 +17,7 @@ struct MenuDishCard: View {
                 // Main Content
                 HStack(alignment: .top, spacing: 16) {
                     // Image
-                    AsyncImage(url: URL(string: dish.imageURL)) { phase in
+                    AsyncImage(url: URL(string: dish.thumbnail_url ?? "")) { phase in
                         switch phase {
                         case .empty:
                             Rectangle()
@@ -52,7 +46,7 @@ struct MenuDishCard: View {
                             .foregroundColor(.white)
                             .padding(.trailing, 60) // Increased space for delete button
                         
-                        Text(dish.description)
+                        Text(dish.description ?? "")
                             .font(.system(size: 14))
                             .foregroundColor(Color.white.opacity(0.6))
                             .lineLimit(2)
@@ -71,7 +65,7 @@ struct MenuDishCard: View {
                                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                                 )
                             
-                            Text(dish.price)
+                            Text(String(format: "$%.2f", dish.price))
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(Color(hex: "2b7fff"))
                         }
@@ -105,14 +99,19 @@ struct MenuDishCard: View {
             
             // Action Buttons
             HStack(spacing: 8) {
-                Button(action: { /* Preview 3D */ }) {
+                // Preview 3D Button - Always clickable, shows alert if no model
+                Button(action: {
+                    print("🔍 Preview button tapped for dish: \(dish.name)")
+                    print("🔍 Model URL: \(dish.model_url ?? "nil")")
+                    onPreview()
+                }) {
                     HStack(spacing: 6) {
                         Image(systemName: "eye")
                             .font(.system(size: 14))
                         Text("Preview 3D")
                             .font(.system(size: 12))
                     }
-                    .foregroundColor(Color.white.opacity(0.7))
+                    .foregroundColor(dish.model_url != nil ? Color.white.opacity(0.7) : Color.white.opacity(0.3))
                     .frame(maxWidth: .infinity)
                     .frame(height: 40)
                     .background(Color.white.opacity(0.05))
@@ -144,10 +143,12 @@ struct MenuDishCard: View {
             .padding(16)
             .padding(.top, -4) // Adjust spacing to match React's pt-3 (12px) vs VStack spacing
         }
-        .background(Color.white.opacity(0.05))
-        .cornerRadius(16)
+        .background(
+            Color(hex: "1e293b"), // Dark non-glass background
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color.white.opacity(0.1), lineWidth: 1)
         )
         .shadow(color: Color(hex: "2b7fff").opacity(0.15), radius: 32, x: 0, y: 8)
@@ -157,78 +158,33 @@ struct MenuDishCard: View {
 // MARK: - Screen
 struct OwnerMenuScreen: View {
     @State private var searchQuery = ""
+    @State private var dishes: [Dish] = []
+    @State private var isLoading = false
+    @State private var showAddDish = false
     
-    // Mock Data
-    let dishes: [MenuDish] = [
-        MenuDish(
-            id: "1",
-            name: "Classic Burger",
-            description: "Juicy beef patty with fresh vegetables",
-            price: "$12.99",
-            category: "Main Course",
-            status: "published",
-            imageURL: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxidXJnZXJ8ZW58MXx8fHwxNzYzNzE3MDYwfDA&ixlib=rb-4.1.0&q=80&w=1080"
-        ),
-        MenuDish(
-            id: "2",
-            name: "Margherita Pizza",
-            description: "Fresh mozzarella, tomatoes, and basil",
-            price: "$14.99",
-            category: "Main Course",
-            status: "published",
-            imageURL: "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwaXp6YXxlbnwxfHx8fDE3NjM3MTcwNjB8MA&ixlib=rb-4.1.0&q=80&w=1080"
-        ),
-        MenuDish(
-            id: "3",
-            name: "Caesar Salad",
-            description: "Crisp romaine, parmesan, and croutons",
-            price: "$8.99",
-            category: "Appetizer",
-            status: "draft",
-            imageURL: "https://images.unsplash.com/photo-1546793665-c74683f339c1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYWVzYXIlMjBzYWxhZHxlbnwxfHx8fDE3NjM3MTcwNjB8MA&ixlib=rb-4.1.0&q=80&w=1080"
-        ),
-        MenuDish(
-            id: "4",
-            name: "Chocolate Cake",
-            description: "Rich chocolate with ganache frosting",
-            price: "$6.99",
-            category: "Dessert",
-            status: "processing",
-            imageURL: "https://images.unsplash.com/photo-1578985545062-69928b1d9587?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjaG9jb2xhdGUlMjBjYWtlfGVufDF8fHx8MTc2MzcxNzA2MHww&ixlib=rb-4.1.0&q=80&w=1080"
-        )
-    ]
+    // Preview State
+    @State private var showModelPreview = false
+    @State private var selectedModelURL: URL?
+    @State private var showNoModelAlert = false
+    
+    // Download State (for inline preview)
+    @StateObject private var downloader = ModelDownloader()
+    @State private var localModelURL: URL?
+    @State private var downloadError: String?
+    
+    // Custom formatted dishes for view
+    var filteredDishes: [Dish] {
+        if searchQuery.isEmpty {
+            return dishes
+        } else {
+            return dishes.filter { $0.name.localizedCaseInsensitiveContains(searchQuery) }
+        }
+    }
     
     var body: some View {
         ZStack {
-            // 1. Background Gradient
-            LinearGradient(
-                colors: [
-                    Color(hex: "050505"),
-                    Color(hex: "0B0F1A"),
-                    Color(hex: "111827")
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-            
-            // 2. Background Glow Blob
-            VStack {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [Color(hex: "2b7fff").opacity(0.4), Color(hex: "2b7fff").opacity(0)],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: 250
-                        )
-                    )
-                    .frame(width: 380, height: 380)
-                    .blur(radius: 100)
-                    .offset(y: -250)
-                Spacer()
-            }
-            .ignoresSafeArea()
+            // 1. Unified Liquid Glass Background
+            Theme.background.ignoresSafeArea()
             
             // 3. Content
             ScrollView {
@@ -284,17 +240,45 @@ struct OwnerMenuScreen: View {
                     }
                     
                     // Dishes List
-                    VStack(spacing: 16) {
-                        ForEach(dishes) { dish in
-                            MenuDishCard(
-                                dish: dish,
-                                onEdit: { /* Edit dish */ },
-                                onDelete: { /* Delete dish */ }
-                            )
+                    if isLoading {
+                        ProgressView()
+                            .tint(.white)
+                            .padding(.top, 40)
+                    } else if filteredDishes.isEmpty {
+                        VStack(spacing: 16) {
+                            Image(systemName: "fork.knife.circle")
+                                .font(.system(size: 48))
+                                .foregroundColor(Color.white.opacity(0.3))
+                            Text("No dishes found")
+                                .foregroundColor(Color.white.opacity(0.6))
                         }
+                        .padding(.top, 40)
+                    } else {
+                            ForEach(filteredDishes) { dish in
+                                MenuDishCard(
+                                    dish: dish,
+                                    onEdit: { /* Edit dish */ },
+                                    onDelete: { /* Delete dish */ },
+                                    onPreview: {
+                                        print("🔍 onPreview called for dish: \(dish.name)")
+                                        print("🔍 Model URL value: \(dish.model_url ?? "nil")")
+                                        if let modelURL = dish.model_url, !modelURL.isEmpty, let url = URL(string: modelURL) {
+                                            // ✅ Best Practice: Set URL and reset states BEFORE showing sheet
+                                            selectedModelURL = url
+                                            localModelURL = nil
+                                            downloadError = nil
+                                            showModelPreview = true
+                                            print("✅ Preview triggered with URL: \(url.absoluteString)")
+                                        } else {
+                                            print("⚠️ No model URL available for this dish")
+                                            showNoModelAlert = true
+                                        }
+                                    }
+                                )
+                            }
                     }
-                    .padding(.bottom, 120) // Space for FAB and Tab Bar
                 }
+                .padding(.bottom, 120) // Space for FAB and Tab Bar
                 .padding(.horizontal, 24)
                 .frame(maxWidth: 500)
             }
@@ -304,7 +288,7 @@ struct OwnerMenuScreen: View {
                 Spacer()
                 HStack {
                     Spacer()
-                    Button(action: { /* Add Dish */ }) {
+                    Button(action: { showAddDish = true }) {
                         Image(systemName: "plus")
                             .font(.system(size: 24, weight: .semibold))
                             .foregroundColor(.white)
@@ -324,7 +308,147 @@ struct OwnerMenuScreen: View {
                 }
             }
         }
+        .fullScreenCover(isPresented: $showAddDish) {
+            AddEditDishScreen(
+                onBack: { showAddDish = false },
+                onSave: {
+                    showAddDish = false
+                    Task { await loadDishes() }
+                },
+                dishId: nil
+            )
+        }
+        .fullScreenCover(isPresented: $showModelPreview) {
+            // ✅ OPTION 1: Inline content - accesses selectedModelURL directly
+            ZStack {
+                Color.black.ignoresSafeArea()
+                
+                if let localURL = localModelURL {
+                    // Show the model using QuickLook
+                    ZStack(alignment: .topTrailing) {
+                        ModelView(modelFile: localURL, endCaptureCallback: {
+                            showModelPreview = false
+                        })
+                        .ignoresSafeArea()
+                        
+                        // Close Button
+                        Button(action: { showModelPreview = false }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 30))
+                                .foregroundColor(.white)
+                                .background(Color.black.opacity(0.4))
+                                .clipShape(Circle())
+                        }
+                        .padding(24)
+                    }
+                } else if downloader.isDownloading {
+                    // Show download progress
+                    VStack(spacing: 20) {
+                        ProgressView(value: downloader.downloadProgress)
+                            .progressViewStyle(.linear)
+                            .tint(Color(hex: "3B82F6"))
+                            .frame(width: 200)
+                        
+                        Text("Downloading model...")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        
+                        Text("\(Int(downloader.downloadProgress * 100))%")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                        
+                        Button(action: { showModelPreview = false }) {
+                            Text("Cancel")
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 12)
+                                .background(Color(hex: "1E293B"))
+                                .cornerRadius(12)
+                        }
+                    }
+                } else if let error = downloadError {
+                    // Show error
+                    VStack(spacing: 20) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 48))
+                            .foregroundColor(.yellow)
+                        
+                        Text("Download Failed")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        
+                        Text(error)
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                        
+                        Button(action: { showModelPreview = false }) {
+                            Text("Close")
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 12)
+                                .background(Color(hex: "3B82F6"))
+                                .cornerRadius(12)
+                        }
+                    }
+                }
+            }
+            .task {
+                // ✅ Best Practice: Read selectedModelURL DIRECTLY from parent scope
+                print("🔍 Preview sheet task started")
+                print("🔍 selectedModelURL: \(selectedModelURL?.absoluteString ?? "nil")")
+                
+                guard let url = selectedModelURL else {
+                    print("❌ No URL in selectedModelURL")
+                    downloadError = "No model URL provided"
+                    return
+                }
+                
+                // If it's already a local file URL, use it directly
+                if url.isFileURL {
+                    localModelURL = url
+                    return
+                }
+                
+                // Otherwise, download from remote URL
+                do {
+                    let localURL = try await downloader.downloadModel(from: url)
+                    
+                    // 🔥 Give filesystem a moment to settle before Quick Look
+                    try await Task.sleep(nanoseconds: 300_000_000) // 0.3s
+                    
+                    await MainActor.run {
+                        localModelURL = localURL
+                    }
+                } catch {
+                    await MainActor.run {
+                        downloadError = error.localizedDescription
+                    }
+                }
+            }
+        }
+        .task {
+            await loadDishes()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .supabaseDataDidUpdate)) { _ in
+            Task { await loadDishes() }
+        }
+        .alert("No 3D Model", isPresented: $showNoModelAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("This dish doesn't have a 3D model yet. Please create or upload one to preview.")
+        }
+    }
+    
+    func loadDishes() async {
+        isLoading = true
+        do {
+            dishes = try await SupabaseManager.shared.fetchOwnerDishes()
+        } catch {
+            print("Error loading dishes: \(error)")
+        }
+        isLoading = false
     }
 }
-
 

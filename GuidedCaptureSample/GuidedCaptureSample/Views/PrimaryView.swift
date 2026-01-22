@@ -41,7 +41,11 @@ struct PrimaryView: View {
         }
         .sheet(isPresented: $showReconstructionView) {
             if let folderManager = appModel.captureFolderManager {
-                ReconstructionPrimaryView(outputFile: folderManager.modelsFolder.appendingPathComponent("model-mobile.usdz"))
+                // ✅ APPLE-PREFERRED: Use captureSessionID for predictable, unique filename
+                let outputFile = folderManager.modelsFolder.appendingPathComponent("\(appModel.captureSessionID.uuidString).usdz")
+                ReconstructionPrimaryView(outputFile: outputFile, onDismiss: {
+                    showReconstructionView = false
+                })
                     .interactiveDismissDisabled()
             }
         }

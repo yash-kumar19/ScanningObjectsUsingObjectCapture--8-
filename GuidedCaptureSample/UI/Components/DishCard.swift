@@ -7,91 +7,115 @@ struct DishCard: View {
     let price: Double
     let category: String
     let image: String
+    var hasModel: Bool = false
     let onAddToCart: () -> Void
     var onClick: (() -> Void)? = nil
+    var onViewAR: (() -> Void)? = nil
     
     var body: some View {
         Button(action: { onClick?() }) {
-            GlassCard(padding: 0) {
-                HStack(spacing: 16) {
-                    // Image
-                    ZStack {
-                        AsyncImage(url: URL(string: image)) { phase in
-                            if let image = phase.image {
-                                image.resizable().aspectRatio(contentMode: .fill)
-                            } else {
-                                Rectangle().fill(Color.gray.opacity(0.3))
-                                    .overlay(
-                                        Image(systemName: "photo")
-                                            .foregroundColor(.white.opacity(0.3))
-                                    )
-                            }
+            HStack(spacing: 16) {
+                // Image
+                ZStack {
+                    AsyncImage(url: URL(string: image)) { phase in
+                        switch phase {
+                        case .empty:
+                            Rectangle().fill(Color.white.opacity(0.05))
+                        case .success(let image):
+                            image.resizable().aspectRatio(contentMode: .fill)
+                        case .failure:
+                            Rectangle().fill(Color.white.opacity(0.05))
+                                .overlay(
+                                    Image(systemName: "photo")
+                                        .foregroundColor(.white.opacity(0.3))
+                                )
+                        @unknown default:
+                            EmptyView()
                         }
-                        .frame(width: 112, height: 112) // w-28 h-28
-                        .clipped()
-                        
-                        // View 3D Overlay (simulated hover effect)
-                        Color.black.opacity(0.0) // Placeholder for hover logic
                     }
-                    .cornerRadius(20)
-                    
-                    // Info
-                    VStack(alignment: .leading, spacing: 0) {
-                        HStack(alignment: .top) {
-                            Text(name)
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .lineLimit(1)
-                            Spacer()
+                }
+                .frame(width: 80, height: 80)
+                .cornerRadius(16)
+                .clipped()
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+                
+                // Info
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(name)
+                            .font(.system(size: 16, weight: .bold)) // Bolder title
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                        
+                        // AR Badge if model exists
+                        if hasModel {
+                            Image(systemName: "arkit")
+                                .font(.caption)
+                                .foregroundColor(Color(hex: "60a5fa")) // Blue-400
                         }
-                        .padding(.bottom, 4)
-                        
-                        Text(description)
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.6))
-                            .lineLimit(2)
-                            .padding(.bottom, 8)
-                        
-                        // Category Pill
+                    }
+                    
+                    Text(description)
+                        .font(.system(size: 13))
+                        .foregroundColor(Color.white.opacity(0.6))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    
+                    HStack {
                         Text(category)
-                            .font(.caption2)
-                            .foregroundColor(Color(hex: "8b5cf6"))
-                            .padding(.horizontal, 12)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(Color(hex: "c7d2fe")) // Indigo-200
+                            .padding(.horizontal, 10)
                             .padding(.vertical, 4)
-                            .background(Color(hex: "8b5cf6").opacity(0.1))
-                            .cornerRadius(100)
+                            .background(Color(hex: "4338ca").opacity(0.3)) // Indigo-700 w/ opacity
+                            .cornerRadius(8)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 100)
-                                    .stroke(Color(hex: "8b5cf6").opacity(0.3), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color(hex: "6366f1").opacity(0.3), lineWidth: 1)
                             )
                         
                         Spacer()
                     }
-                    .frame(height: 112)
-                    
-                    // Price and Action
-                    VStack(alignment: .trailing) {
-                        Text(String(format: "$%.2f", price))
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(Theme.primaryBlue)
-                        
-                        Spacer()
-                        
-                        Button(action: onAddToCart) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 20))
-                                .foregroundColor(.white)
-                                .frame(width: 40, height: 40)
-                                .background(Theme.gradientBlue)
-                                .cornerRadius(16)
-                                .shadow(color: Theme.primaryBlue.opacity(0.4), radius: 16, x: 0, y: 4)
-                        }
-                    }
-                    .frame(height: 112)
+                    .padding(.top, 2)
                 }
-                .padding(16)
+                
+                Spacer()
+                
+                // Price and Action
+                VStack(alignment: .trailing, spacing: 12) {
+                    Text(String(format: "$%.2f", price))
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(Color(hex: "60a5fa")) // Blue-400
+                    
+                    Button(action: {
+                        if hasModel {
+                            onViewAR?() 
+                        } else {
+                            onAddToCart()
+                        }
+                    }) {
+                        Image(systemName: hasModel ? "cube.transparent" : "plus")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 36, height: 36) // Slightly larger button
+                            .background(Color(hex: "3b82f6")) // Blue-500
+                            .clipShape(Circle())
+                            .shadow(color: Color.blue.opacity(0.3), radius: 4, x: 0, y: 2)
+                    }
+                }
             }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color(hex: "1e293b")) // Dark slate
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            )
         }
         .buttonStyle(PlainButtonStyle())
     }

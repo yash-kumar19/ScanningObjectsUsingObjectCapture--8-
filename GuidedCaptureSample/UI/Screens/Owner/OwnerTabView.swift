@@ -19,7 +19,9 @@ struct OwnerTabView: View {
                 case 3:
                     OwnerReservationsScreen()
                 case 4:
-                    OwnerSettingsScreen(onLogout: {})
+                    OwnerSettingsScreen(onLogout: {
+                        SupabaseManager.shared.logout()
+                    })
                 default:
                     EmptyView()
                 }
@@ -89,20 +91,24 @@ struct OwnerBottomTabBar: View {
         .padding(.vertical, 4)
         .fixedSize(horizontal: false, vertical: true)
         .background(
-            ZStack {
-                // Blur
-                BlurView(style: .systemUltraThinMaterialDark)
-                
-                // Black tint (bg-black/80)
-                Color.black.opacity(0.8)
-            }
+            Color(hex: "1e293b"),
+            in: RoundedRectangle(cornerRadius: 28, style: .continuous)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 28)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            .white.opacity(0.15),
+                            .white.opacity(0.05)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
         )
-        .shadow(color: Color.black.opacity(0.6), radius: 32, x: 0, y: 8)
+        .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
         .padding(.horizontal, 24)
         .padding(.bottom, 20)
     }

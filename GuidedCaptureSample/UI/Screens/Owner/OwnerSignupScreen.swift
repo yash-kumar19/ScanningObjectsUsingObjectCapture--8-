@@ -20,13 +20,7 @@ struct OwnerSignupScreen: View {
             Theme.background.ignoresSafeArea()
             
             // Background Glows
-            ZStack {
-                Circle()
-                    .fill(Theme.primaryBlue.opacity(0.4))
-                    .frame(width: 600, height: 600)
-                    .blur(radius: 120)
-                    .offset(y: -300)
-            }
+            // Glow removed per user request
             
             VStack(spacing: 0) {
                 // Back Button

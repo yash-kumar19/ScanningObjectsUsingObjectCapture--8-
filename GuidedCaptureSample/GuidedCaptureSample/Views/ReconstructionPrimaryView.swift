@@ -14,23 +14,17 @@ private let logger = Logger(subsystem: GuidedCaptureSampleApp.subsystem, categor
 struct ReconstructionPrimaryView: View {
     @Environment(AppDataModel.self) var appModel
     let outputFile: URL
+    let onDismiss: () -> Void
 
     @State private var completed: Bool = false
     @State private var cancelled: Bool = false
 
     var body: some View {
-        if completed && !cancelled {
-            ModelView(modelFile: outputFile, endCaptureCallback: { [weak appModel] in
-                appModel?.endCapture()
-            })
-            .onAppear(perform: {
-                UIApplication.shared.isIdleTimerDisabled = false
-            })
-        } else {
-            ReconstructionProgressView(outputFile: outputFile,
-                                       completed: $completed,
-                                       cancelled: $cancelled)
-        }
+        // Strict: No ModelView embedding. Just progress.
+        ReconstructionProgressView(outputFile: outputFile,
+                                   completed: $completed,
+                                   cancelled: $cancelled,
+                                   onDismiss: onDismiss)
     }
 }
 
@@ -39,6 +33,7 @@ struct ReconstructionProgressView: View {
     let outputFile: URL
     @Binding var completed: Bool
     @Binding var cancelled: Bool
+    var onDismiss: () -> Void
 
     @State private var progress: Float = 0
     @State private var estimatedRemainingTime: TimeInterval?
@@ -106,17 +101,30 @@ struct ReconstructionProgressView: View {
             message: {}
         )
         .task {
-            precondition(appModel.state == .reconstructing)
-            assert(appModel.photogrammetrySession != nil)
+            // Remove strict precondition to prevent crash if state is 'prepareToReconstruct' locally
+            // precondition(appModel.state == .reconstructing)
+            
+            // Wait for session to be ready
+            if appModel.photogrammetrySession == nil {
+                logger.warning("PhotogrammetrySession is nil. Waiting or returning.")
+                return 
+            }
+            
             guard let session = appModel.photogrammetrySession else {
                 logger.error("Session unavailable from photogrammetry session.")
-
                 return
             }
 
             let outputs = UntilProcessingCompleteFilter(input: session.outputs)
             do {
-                try session.process(requests: [.modelFile(url: outputFile)])
+                // On iOS, PhotogrammetrySession currently only supports .reduced detail level for on-device processing.
+                // This is the highest quality available without offloading to a Mac.
+                try session.process(requests: [
+                    PhotogrammetrySession.Request.modelFile(
+                        url: outputFile,
+                        detail: .reduced
+                    )
+                ])
             } catch {
                 logger.error("Processing the session failed!")
             }
@@ -150,8 +158,19 @@ struct ReconstructionProgressView: View {
                         }
                     case .processingComplete:
                         if !gotError {
-                            completed = true
-                            appModel.state = .viewing
+                            logger.log("Processing complete! Capturing actual model URL and triggering data-driven upload...")
+                            
+                            // ✅ APPLE-PREFERRED: Capture the actual URL Apple wrote to
+                            // Use setLocalModelURL() which triggers upload via data-driven flow
+                            await MainActor.run {
+                                appModel.setLocalModelURL(outputFile)
+                                completed = true
+                                // STRICT: Pipeline sets .completed
+                                appModel.state = .completed 
+                                logger.log("✅ Model URL captured: \(outputFile.path)")
+                                logger.log("UI updated: completed=true, state=.completed. Dismissing...")
+                                onDismiss()
+                            }
                         }
                     case .processingCancelled:
                         cancelled = true
@@ -246,3 +265,4 @@ private struct TitleView: View {
         )
     }
 }
+

@@ -1,60 +1,13 @@
 import SwiftUI
 
-// MARK: - Models
-struct OwnerReservation: Identifiable {
-    let id: String
-    let customerName: String
-    let email: String
-    let phone: String
-    let date: String
-    let time: String
-    let guests: Int
-    let status: OwnerReservationStatus
-    let special: String?
-}
-
-enum OwnerReservationStatus: String {
-    case confirmed
-    case pending
-    case cancelled
-    
-    var label: String {
-        switch self {
-        case .confirmed: return "Confirmed"
-        case .pending: return "Pending"
-        case .cancelled: return "Cancelled"
-        }
-    }
-    
-    var color: Color {
-        switch self {
-        case .confirmed: return Color(hex: "4ade80") // green-400
-        case .pending: return Color(hex: "facc15") // yellow-400
-        case .cancelled: return Color(hex: "f87171") // red-400
-        }
-    }
-    
-    var bgColor: Color {
-        switch self {
-        case .confirmed: return Color(hex: "22c55e").opacity(0.1) // green-500/10
-        case .pending: return Color(hex: "eab308").opacity(0.1) // yellow-500/10
-        case .cancelled: return Color(hex: "ef4444").opacity(0.1) // red-500/10
-        }
-    }
-    
-    var borderColor: Color {
-        switch self {
-        case .confirmed: return Color(hex: "22c55e").opacity(0.3) // green-500/30
-        case .pending: return Color(hex: "eab308").opacity(0.3) // yellow-500/30
-        case .cancelled: return Color(hex: "ef4444").opacity(0.3) // red-500/30
-        }
-    }
-}
-
 // MARK: - Screen
 struct OwnerReservationsScreen: View {
     @State private var searchQuery = ""
-    @State private var selectedDate = "today"
+    @State private var selectedDate = "all"
+    @State private var reservations: [Reservation] = []
+    @State private var isLoading = false
+    
+    @ObservedObject private var supabase = SupabaseManager.shared
     
     let dateFilters = [
         (id: "today", label: "Today"),
@@ -63,84 +16,41 @@ struct OwnerReservationsScreen: View {
         (id: "all", label: "All")
     ]
     
-    let reservations = [
-        OwnerReservation(
-            id: "1",
-            customerName: "John Smith",
-            email: "john.smith@email.com",
-            phone: "+1 (555) 123-4567",
-            date: "Today",
-            time: "7:00 PM",
-            guests: 4,
-            status: .confirmed,
-            special: "Window seat requested"
-        ),
-        OwnerReservation(
-            id: "2",
-            customerName: "Sarah Johnson",
-            email: "sarah.j@email.com",
-            phone: "+1 (555) 987-6543",
-            date: "Today",
-            time: "8:30 PM",
-            guests: 2,
-            status: .pending,
-            special: "Anniversary celebration"
-        ),
-        OwnerReservation(
-            id: "3",
-            customerName: "Michael Brown",
-            email: "mbrown@email.com",
-            phone: "+1 (555) 456-7890",
-            date: "Tomorrow",
-            time: "6:00 PM",
-            guests: 6,
-            status: .confirmed,
-            special: nil
-        ),
-        OwnerReservation(
-            id: "4",
-            customerName: "Emily Davis",
-            email: "emily.d@email.com",
-            phone: "+1 (555) 234-5678",
-            date: "Dec 25",
-            time: "7:30 PM",
-            guests: 8,
-            status: .cancelled,
-            special: nil
-        )
-    ]
+    var filteredReservations: [Reservation] {
+        var result = reservations
+        
+        // Date Filter (Simplified logic for MVP)
+        let calendar = Calendar.current
+        let today = Date()
+        
+        if selectedDate == "today" {
+            result = result.filter {
+                guard let date = ISO8601DateFormatter().date(from: $0.reservation_date) else { return false }
+                return calendar.isDateInToday(date)
+            }
+        } else if selectedDate == "tomorrow" {
+            result = result.filter {
+                guard let date = ISO8601DateFormatter().date(from: $0.reservation_date) else { return false }
+                return calendar.isDateInTomorrow(date)
+            }
+        }
+        // "week" logic omitted for brevity, keeping simple
+        
+        // Search Filter
+        if !searchQuery.isEmpty {
+            result = result.filter {
+                let name = $0.customer?.full_name ?? ""
+                return name.localizedCaseInsensitiveContains(searchQuery)
+            }
+        }
+        
+        return result
+    }
     
     var body: some View {
         ZStack {
-            // 1. Background Gradient
-            LinearGradient(
-                colors: [
-                    Color(hex: "050505"),
-                    Color(hex: "0B0F1A"),
-                    Color(hex: "111827")
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-            
-            // 2. Background Glow Blob
-            VStack {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [Color(hex: "2b7fff").opacity(0.4), Color(hex: "2b7fff").opacity(0)],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: 250
-                        )
-                    )
-                    .frame(width: 380, height: 380)
-                    .blur(radius: 100)
-                    .offset(y: -250)
-                Spacer()
-            }
-            .ignoresSafeArea()
+            // 1. Unified Liquid Glass Background
+            Theme.background.ignoresSafeArea()
             
             // 3. Content
             ScrollView {
@@ -218,10 +128,23 @@ struct OwnerReservationsScreen: View {
                         }
                     }
                     
-                    // Reservations List
-                    VStack(spacing: 16) {
-                        ForEach(reservations) { reservation in
-                            OwnerReservationCard(reservation: reservation)
+                    if isLoading {
+                        ProgressView().tint(.white).padding(40)
+                    } else if filteredReservations.isEmpty {
+                        Text("No reservations found.")
+                            .foregroundColor(.gray)
+                            .padding(40)
+                    } else {
+                        // Reservations List
+                        VStack(spacing: 16) {
+                            ForEach(filteredReservations) { reservation in
+                                OwnerReservationCard(
+                                    reservation: reservation,
+                                    onConfirm: { updateStatus(id: reservation.id, status: "confirmed") },
+                                    onDecline: { updateStatus(id: reservation.id, status: "cancelled") },
+                                    onCancel: { updateStatus(id: reservation.id, status: "cancelled") }
+                                )
+                            }
                         }
                     }
                     
@@ -231,35 +154,107 @@ struct OwnerReservationsScreen: View {
                 .frame(maxWidth: 500)
             }
         }
+        .onAppear {
+            loadData()
+            supabase.startPolling()
+        }
+        .onDisappear {
+            supabase.stopPolling()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .supabaseDataDidUpdate)) { _ in
+            loadData()
+        }
+    }
+    
+    private func loadData() {
+        if reservations.isEmpty { isLoading = true }
+        Task {
+            do {
+                let items = try await supabase.fetchOwnerReservations()
+                await MainActor.run {
+                    self.reservations = items
+                    self.isLoading = false
+                }
+            } catch {
+                print("Error fetching owner reservations: \(error)")
+                await MainActor.run { self.isLoading = false }
+            }
+        }
+    }
+    
+    private func updateStatus(id: String, status: String) {
+        Task {
+            try? await supabase.updateReservationStatus(id: id, status: status)
+            loadData()
+        }
     }
 }
 
 struct OwnerReservationCard: View {
-    let reservation: OwnerReservation
+    let reservation: Reservation
+    var onConfirm: () -> Void
+    var onDecline: () -> Void
+    var onCancel: () -> Void
+    
+    var customerName: String {
+        reservation.customer?.full_name ?? "Unknown"
+    }
+    
+    var customerEmail: String {
+        reservation.customer?.email ?? "No email"
+    }
+    
+    var formattedDate: String {
+        let formatter = ISO8601DateFormatter()
+        if let date = formatter.date(from: reservation.reservation_date) {
+            let displayFormatter = DateFormatter()
+            displayFormatter.dateStyle = .medium
+            return displayFormatter.string(from: date)
+        }
+        return reservation.reservation_date
+    }
+    
+    var formattedTime: String {
+        let formatter = ISO8601DateFormatter()
+        if let date = formatter.date(from: reservation.reservation_date) {
+            let displayFormatter = DateFormatter()
+            displayFormatter.timeStyle = .short
+            return displayFormatter.string(from: date)
+        }
+        return ""
+    }
+    
+    var statusEnum: OwnerReservationStatus {
+        switch reservation.status {
+            case "confirmed": return .confirmed
+            case "cancelled": return .cancelled
+            default: return .pending
+        }
+    }
     
     var body: some View {
         VStack(spacing: 16) {
             // Header
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(reservation.customerName)
+                    Text(customerName)
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.white)
                     
                     HStack(spacing: 8) {
-                        Text(reservation.status.label)
+                        Text(statusEnum.label)
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(reservation.status.color)
+                            .foregroundColor(statusEnum.color)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(reservation.status.bgColor)
+                            .background(statusEnum.bgColor)
                             .cornerRadius(8)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8)
-                                    .stroke(reservation.status.borderColor, lineWidth: 1)
+                                    .stroke(statusEnum.borderColor, lineWidth: 1)
                             )
                         
-                        Text(reservation.date)
+                        Text(formattedDate)
                             .font(.system(size: 12))
                             .foregroundColor(Color.white.opacity(0.5))
                     }
@@ -273,16 +268,7 @@ struct OwnerReservationCard: View {
                     Image(systemName: "envelope")
                         .font(.system(size: 14))
                         .foregroundColor(Color(hex: "2b7fff"))
-                    Text(reservation.email)
-                        .font(.system(size: 14))
-                        .foregroundColor(Color.white.opacity(0.6))
-                }
-                
-                HStack(spacing: 8) {
-                    Image(systemName: "phone")
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(hex: "2b7fff"))
-                    Text(reservation.phone)
+                    Text(customerEmail)
                         .font(.system(size: 14))
                         .foregroundColor(Color.white.opacity(0.6))
                 }
@@ -294,7 +280,7 @@ struct OwnerReservationCard: View {
                     Image(systemName: "clock")
                         .font(.system(size: 14))
                         .foregroundColor(Color(hex: "2b7fff"))
-                    Text(reservation.time)
+                    Text(formattedTime)
                         .font(.system(size: 14))
                         .foregroundColor(Color.white.opacity(0.7))
                 }
@@ -303,7 +289,7 @@ struct OwnerReservationCard: View {
                     Image(systemName: "person.2")
                         .font(.system(size: 14))
                         .foregroundColor(Color(hex: "2b7fff"))
-                    Text("\(reservation.guests) Guests")
+                    Text("\(reservation.guest_count) Guests")
                         .font(.system(size: 14))
                         .foregroundColor(Color.white.opacity(0.7))
                 }
@@ -319,7 +305,7 @@ struct OwnerReservationCard: View {
             )
             
             // Special Requests
-            if let special = reservation.special {
+            if let special = reservation.special_requests, !special.isEmpty {
                 HStack(alignment: .top, spacing: 8) {
                     Text("💬")
                         .font(.system(size: 12))
@@ -334,9 +320,9 @@ struct OwnerReservationCard: View {
             }
             
             // Actions
-            if reservation.status == .pending {
+            if statusEnum == .pending {
                 HStack(spacing: 12) {
-                    Button(action: { /* Confirm */ }) {
+                    Button(action: onConfirm) {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 12))
@@ -354,7 +340,7 @@ struct OwnerReservationCard: View {
                         )
                     }
                     
-                    Button(action: { /* Decline */ }) {
+                    Button(action: onDecline) {
                         HStack(spacing: 6) {
                             Image(systemName: "xmark")
                                 .font(.system(size: 12))
@@ -372,8 +358,8 @@ struct OwnerReservationCard: View {
                         )
                     }
                 }
-            } else if reservation.status == .confirmed {
-                Button(action: { /* Cancel */ }) {
+            } else if statusEnum == .confirmed {
+                Button(action: onCancel) {
                     HStack(spacing: 6) {
                         Image(systemName: "xmark")
                             .font(.system(size: 12))
@@ -393,12 +379,56 @@ struct OwnerReservationCard: View {
             }
         }
         .padding(16)
-        .background(Color.white.opacity(0.05))
-        .cornerRadius(16)
+        .background(
+            Color(hex: "1e293b"),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color.white.opacity(0.1), lineWidth: 1)
         )
         .shadow(color: Color(hex: "2b7fff").opacity(0.15), radius: 32, x: 0, y: 8)
     }
+}
+
+enum OwnerReservationStatus: String {
+    case confirmed
+    case pending
+    case cancelled
+    
+    var label: String {
+        switch self {
+        case .confirmed: return "Confirmed"
+        case .pending: return "Pending"
+        case .cancelled: return "Cancelled"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .confirmed: return Color(hex: "4ade80") // green-400
+        case .pending: return Color(hex: "facc15") // yellow-400
+        case .cancelled: return Color(hex: "f87171") // red-400
+        }
+    }
+    
+    var bgColor: Color {
+        switch self {
+        case .confirmed: return Color(hex: "22c55e").opacity(0.1)
+        case .pending: return Color(hex: "eab308").opacity(0.1)
+        case .cancelled: return Color(hex: "ef4444").opacity(0.1)
+        }
+    }
+    
+    var borderColor: Color {
+        switch self {
+        case .confirmed: return Color(hex: "22c55e").opacity(0.3)
+        case .pending: return Color(hex: "eab308").opacity(0.3)
+        case .cancelled: return Color(hex: "ef4444").opacity(0.3)
+        }
+    }
+}
+
+#Preview {
+    OwnerReservationsScreen()
 }

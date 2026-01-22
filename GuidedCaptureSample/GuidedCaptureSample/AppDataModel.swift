@@ -94,7 +94,7 @@ class AppDataModel: Identifiable {
 
     // Postpone creating ObjectCaptureSession and PhotogrammetrySession until necessary.
     private init() {
-        state = .ready
+        state = .notSet
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(handleAppTermination(notification:)),
                                                name: UIApplication.willTerminateNotification,
@@ -149,6 +149,213 @@ class AppDataModel: Identifiable {
     private typealias Tracking = ObjectCaptureSession.Tracking
 
     private var tasks: [ Task<Void, Never> ] = []
+    
+    // MARK: - Upload Management
+    
+    public enum ModelUploadState: Equatable, Sendable {
+        case idle
+        case uploading(progress: Double)
+        case completed(url: URL)
+        case failed(error: String)
+        
+        var completedURL: URL? {
+            if case .completed(let url) = self { return url }
+            return nil
+        }
+    }
+    
+    var uploadState: ModelUploadState = .idle
+    private(set) var captureSessionID: UUID = UUID()
+    private var modelUploadTask: Task<Void, Never>?
+    private(set) var localModelURL: URL?
+    
+    /// Starts background upload strictly if constraints are met.
+    /// Triggered by data events (file generation), NOT UI state.
+    func startBackgroundUpload(modelURL: URL, sessionID: UUID) {
+        print("🔍 [UPLOAD CHECK] startBackgroundUpload called")
+        print("🔍 [UPLOAD CHECK] - Requested session: \(sessionID)")
+        print("🔍 [UPLOAD CHECK] - Current session: \(self.captureSessionID)")
+        print("🔍 [UPLOAD CHECK] - Requested URL: \(modelURL.path)")
+        print("🔍 [UPLOAD CHECK] - Current localModelURL: \(self.localModelURL?.path ?? "nil")")
+        print("🔍 [UPLOAD CHECK] - Current uploadState: \(self.uploadState)")
+        
+        // 1. Session Identity Check
+        guard sessionID == self.captureSessionID else {
+            logger.warning("Upload rejected: Session ID mismatch. Current: \(self.captureSessionID), Request: \(sessionID)")
+            print("❌ [UPLOAD REJECTED] Session ID mismatch")
+            return
+        }
+        
+        // 2. File Identity Check (Path-based, not instance-based)
+        let requestedPath = modelURL.standardizedFileURL.path
+        let currentPath = self.localModelURL?.standardizedFileURL.path
+        guard requestedPath == currentPath else {
+            logger.warning("Upload rejected: URL path mismatch. Current: \(currentPath ?? "nil"), Request: \(requestedPath)")
+            print("❌ [UPLOAD REJECTED] URL path mismatch")
+            print("   Current: \(currentPath ?? "nil")")
+            print("   Request: \(requestedPath)")
+            return
+        }
+        
+        // 3. File Existence Check
+        guard FileManager.default.fileExists(atPath: modelURL.path) else {
+            logger.error("Upload rejected: File does not exist at path: \(modelURL.path)")
+            print("❌ [UPLOAD REJECTED] File does not exist")
+            return
+        }
+        
+        // 4. Idempotency Check
+        if case .uploading = uploadState {
+            logger.warning("Upload already in progress for session \(sessionID). Ignoring.")
+            return
+        }
+        if case .completed = uploadState {
+            logger.warning("Upload already completed for session \(sessionID). Ignoring.")
+            return
+        }
+        
+        logger.log("Starting background upload for session: \(sessionID)")
+        print("🚀 [UPLOAD STARTED] All checks passed, starting upload...")
+        uploadState = .uploading(progress: 0.0)
+        
+        // 5. Background Task Wrapper
+        let taskID = UIApplication.shared.beginBackgroundTask {
+            // End handler (if time runs out)
+            logger.error("Background time expired for upload task.")
+        }
+        
+        modelUploadTask = Task {
+            defer {
+                UIApplication.shared.endBackgroundTask(taskID)
+            }
+            
+            var attempts = 0
+            let maxRetries = 3
+            
+            while attempts < maxRetries {
+                do {
+                    if Task.isCancelled { return }
+                    
+                    let filename = "\(sessionID.uuidString).usdz" // Use session ID for filename to match session
+                    // Using SupabaseManager.shared directly
+                    let resultURL = try await SupabaseManager.shared.uploadModel(fileURL: modelURL, name: filename)
+                    
+                    if !Task.isCancelled {
+                       await MainActor.run {
+                           // Re-verify session ID before committing state
+                           guard self.captureSessionID == sessionID else {
+                               logger.warning("Upload finished but session ID changed. Discarding result.")
+                               return
+                           }
+                           self.uploadState = .completed(url: URL(string: resultURL)!)
+                           logger.log("Background upload successfully completed for session \(sessionID): \(resultURL)")
+                       }
+                    }
+                    return // Success
+                } catch {
+                    attempts += 1
+                    logger.warning("Upload attempt \(attempts) failed for session \(sessionID): \(error.localizedDescription)")
+                    
+                    if attempts >= maxRetries {
+                        if !Task.isCancelled {
+                            await MainActor.run {
+                                guard self.captureSessionID == sessionID else { return }
+                                self.uploadState = .failed(error: error.localizedDescription)
+                                logger.error("Background upload failed after \(maxRetries) attempts for session \(sessionID).")
+                            }
+                        }
+                        return // Failure
+                    }
+                    
+                    // Simple backoff: 2s, 4s
+                    if !Task.isCancelled {
+                         try? await Task.sleep(nanoseconds: UInt64(attempts) * 2 * 1_000_000_000)
+                    }
+                }
+            }
+        }
+    }
+    
+    /// Invariant:
+    /// 1. Cancel uploadTask
+    /// 2. Reset uploadState
+    /// 3. Invalidate captureSessionID
+    /// 4. Leave no background work alive
+    func cancelUploadAndRestart() {
+        logger.log("Cancelling upload and restarting capture. Explicit user action.")
+        
+        // 1. Cancel Task
+        modelUploadTask?.cancel()
+        modelUploadTask = nil
+        
+        // 2. Reset State
+        uploadState = .idle
+        localModelURL = nil
+        
+        // 3. Invalidate Session
+        captureSessionID = UUID()
+        logger.log("New Session ID generated: \(self.captureSessionID)")
+        
+        // 4. Trigger Restart
+        state = .restart
+    }
+    
+    func resumePendingUploads() {
+        Task {
+            // Read pending uploads
+            guard let pendingList = UserDefaults.standard.array(forKey: "pending_dish_uploads") as? [[String: String]],
+                  !pendingList.isEmpty else {
+                logger.log("No pending uploads to resume.")
+                return
+            }
+            
+            logger.log("Found \(pendingList.count) pending uploads. Resuming...")
+            
+            var updatedList = pendingList
+            
+            for (index, item) in pendingList.enumerated().reversed() {
+                guard let dishId = item["dish_id"],
+                      let localPath = item["local_path"] else {
+                    continue
+                }
+                
+                let fileURL = URL(fileURLWithPath: localPath)
+                if !FileManager.default.fileExists(atPath: fileURL.path) {
+                    logger.warning("Pending upload file missing at \(localPath). Removing from queue.")
+                    updatedList.remove(at: index)
+                    continue
+                }
+                
+                do {
+                    logger.log("Resuming upload for dish \(dishId)...")
+                    let filename = "\(UUID().uuidString).usdz"
+                    let uploadedURL = try await SupabaseManager.shared.uploadModel(fileURL: fileURL, name: filename)
+                    
+                    logger.log("Upload success. Updating dish \(dishId)...")
+                    try await SupabaseManager.shared.updateDish(id: dishId, modelURL: uploadedURL, generationStatus: "completed")
+                    
+                    logger.log("Dish \(dishId) updated successfully via resume logic.")
+                    updatedList.remove(at: index) // Success, remove from queue
+                } catch {
+                    logger.error("Failed to resume upload for dish \(dishId): \(error.localizedDescription). Will retry later.")
+                    // Leave in queue for next retry
+                }
+            }
+            
+            // Save updated list
+            updatedList = updatedList // Avoid mutating iterator source directly if not reversed, but here we used reversed index
+            UserDefaults.standard.set(updatedList, forKey: "pending_dish_uploads")
+        }
+    }
+
+    func setLocalModelURL(_ url: URL) {
+        self.localModelURL = url
+        logger.debug("Local Model URL set to: \(url.path)")
+        
+        // 🔥 DATA-DRIVEN UPLOAD: Start upload immediately when model URL is set
+        print("🔥 [DATA-DRIVEN] Model URL set, triggering upload...")
+        startBackgroundUpload(modelURL: url, sessionID: captureSessionID)
+    }
 }
 
 extension AppDataModel {
@@ -195,6 +402,15 @@ extension AppDataModel {
     // Should be called when a new capture is to be created, before the session will be needed.
     private func startNewCapture() throws {
         logger.log("startNewCapture() called...")
+        
+        // 🔥 CRITICAL: Reset upload state for new capture
+        // Without this, second capture will be silently skipped if first one completed/failed
+        uploadState = .idle
+        localModelURL = nil
+        modelUploadTask?.cancel()
+        modelUploadTask = nil
+        // DO NOT touch captureSessionID here - it stays frozen for the entire flow
+        
         if !ObjectCaptureSession.isSupported {
             preconditionFailure("ObjectCaptureSession is not supported on this device!")
         }
@@ -253,7 +469,7 @@ extension AppDataModel {
         state = .reconstructing
     }
 
-    private func reset() {
+    func reset() {
         logger.info("reset() called...")
         photogrammetrySession = nil
         objectCaptureSession = nil
@@ -264,9 +480,12 @@ extension AppDataModel {
         currentFeedback = []
         messageList.removeAll()
         captureMode = .object
-        state = .ready
+        state = .notSet
         isSaveDraftEnabled = false
         tutorialPlayedOnce = false
+        // ❌ REMOVED: captureSessionID = UUID()
+        // Session ID is now only regenerated in cancelUploadAndRestart()
+        // This preserves session identity across reconstruction + preview + add dish
     }
 
     private func onStateChanged(newState: ObjectCaptureSession.CaptureState) {
@@ -333,8 +552,12 @@ extension AppDataModel {
                     logger.error("Reconstructing failed!")
                     switchToErrorState(error: error)
                 }
-            case .restart, .completed:
+            case .restart:
                 reset()
+            case .completed:
+                // Do not auto-reset here. Wait for UI to consume the result.
+                logger.log("State is completed. Waiting for UI to handle next steps.")
+                break
             case .viewing:
                 photogrammetrySession = nil
 

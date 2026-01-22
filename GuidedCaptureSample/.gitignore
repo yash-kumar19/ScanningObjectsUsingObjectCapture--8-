@@ -1,10 +1,11 @@
-
 # Xcode
 .DS_Store
 */build/
+build/
 *.derivedData
 *.xcuserstate
-*.xcuserdata/
+*.xcuserdatad/
+xcuserdata/
 *.breakable
 *.xccheckout
 *.moved-aside
@@ -14,13 +15,26 @@ DerivedData/
 *.xg
 *.o
 
+# Build outputs
+*.log
+build.log
+build_output.txt
+
 # Swift Package Manager
 .build/
-
+.swiftpm/
 
 # CocoaPods
 Pods/
 
-# Secrets
-**/SupabaseConfig.swift
+# Sensitive Files - DO NOT COMMIT
+UI/Components/SupabaseConfig.swift
 
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode workspace settings
+*.xcworkspace/xcshareddata/
+*.xcworkspace/xcuserdata/

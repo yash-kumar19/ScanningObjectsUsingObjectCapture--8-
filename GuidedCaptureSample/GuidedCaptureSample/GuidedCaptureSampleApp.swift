@@ -17,6 +17,9 @@ struct GuidedCaptureSampleApp: App {
                 .onOpenURL { url in
                     SupabaseManager.shared.handleRedirectURL(url)
                 }
+                .task {
+                    AppDataModel.instance.resumePendingUploads()
+                }
         }
     }
 }

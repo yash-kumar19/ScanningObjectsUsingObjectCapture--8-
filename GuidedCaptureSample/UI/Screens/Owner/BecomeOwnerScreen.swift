@@ -24,35 +24,10 @@ struct BecomeOwnerScreen: View {
     
     var body: some View {
         ZStack {
-            // 1. Background Gradient
-            LinearGradient(
-                colors: [
-                    Color(hex: "050505"),
-                    Color(hex: "0B0F1A"),
-                    Color(hex: "111827")
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            Theme.background.ignoresSafeArea()
             
-            // 2. Background Glow Blob
-            VStack {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [Color(hex: "2b7fff").opacity(0.3), Color(hex: "2b7fff").opacity(0)],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: 300
-                        )
-                    )
-                    .frame(width: 380, height: 380)
-                    .blur(radius: 120)
-                    .offset(y: -300)
-                Spacer()
-            }
-            .ignoresSafeArea()
+            // Subtle glow
+            // Glow removed per user request
             
             // 3. Content
             ScrollView {
