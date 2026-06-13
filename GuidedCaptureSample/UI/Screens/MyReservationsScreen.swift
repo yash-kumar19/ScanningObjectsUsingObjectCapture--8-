@@ -115,15 +115,15 @@ struct MyReservationsScreen: View {
                 HStack(spacing: 4) {
                     Text("\(upcomingReservations.count) Active")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(Color.fromHex("3B82F6"))
+                        .foregroundColor(Color(hex: "3B82F6"))
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(
                     LinearGradient(
                         colors: [
-                            Color.fromHex("3B82F6").opacity(0.2),
-                            Color.fromHex("3B82F6").opacity(0.2)
+                            Color(hex: "3B82F6").opacity(0.2),
+                            Color(hex: "3B82F6").opacity(0.2)
                         ],
                         startPoint: .leading,
                         endPoint: .trailing
@@ -132,14 +132,14 @@ struct MyReservationsScreen: View {
                 .cornerRadius(20)
                 .overlay(
                     RoundedRectangle(cornerRadius: 20)
-                        .stroke(Color.fromHex("3B82F6").opacity(0.4), lineWidth: 1)
+                        .stroke(Color(hex: "3B82F6").opacity(0.4), lineWidth: 1)
                 )
-                .shadow(color: Color.fromHex("3B82F6").opacity(0.2), radius: 12, x: 0, y: 4)
+                .shadow(color: Color(hex: "3B82F6").opacity(0.2), radius: 12, x: 0, y: 4)
             }
             
             Text("View and manage your upcoming and past reservations")
                 .font(.system(size: 15))
-                .foregroundColor(Color.fromHex("94A3B8"))
+                .foregroundColor(Color(hex: "94A3B8"))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
@@ -163,7 +163,7 @@ struct MyReservationsScreen: View {
             )
         }
         .padding(6)
-        .background(Color.fromHex("1E293B").opacity(0.6))
+        .background(Color(hex: "1E293B").opacity(0.6))
         .cornerRadius(16)
         .overlay(
             RoundedRectangle(cornerRadius: 16)
@@ -203,7 +203,7 @@ struct TabButton: View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(isSelected ? .white : Color.fromHex("94A3B8"))
+                .foregroundColor(isSelected ? .white : Color(hex: "94A3B8"))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .background(
@@ -211,8 +211,8 @@ struct TabButton: View {
                         if isSelected {
                             LinearGradient(
                                 colors: [
-                                    Color.fromHex("2B7FFF"),
-                                    Color.fromHex("3B82F6")
+                                    Color(hex: "2B7FFF"),
+                                    Color(hex: "3B82F6")
                                 ],
                                 startPoint: .leading,
                                 endPoint: .trailing
@@ -224,7 +224,7 @@ struct TabButton: View {
                 )
                 .cornerRadius(12)
                 .shadow(
-                    color: isSelected ? Color.fromHex("3B82F6").opacity(0.3) : Color.clear,
+                    color: isSelected ? Color(hex: "3B82F6").opacity(0.3) : Color.clear,
                     radius: 16,
                     x: 0,
                     y: 4
@@ -293,7 +293,7 @@ struct ReservationCard: View {
                              .opacity(isPast ? 0.7 : 1)
                     default:
                         Rectangle()
-                            .fill(Color.fromHex("1E293B"))
+                            .fill(Color(hex: "1E293B"))
                             .frame(width: 80, height: 80)
                             .cornerRadius(16)
                     }
@@ -340,11 +340,11 @@ struct ReservationCard: View {
                     HStack(spacing: 4) {
                         Image(systemName: "mappin")
                             .font(.system(size: 12))
-                            .foregroundColor(Color.fromHex("64748B"))
+                            .foregroundColor(Color(hex: "64748B"))
                         
                         Text("View Location") // Placeholder
                             .font(.system(size: 12))
-                            .foregroundColor(Color.fromHex("64748B"))
+                            .foregroundColor(Color(hex: "64748B"))
                             .lineLimit(1)
                     }
                 }
@@ -356,28 +356,28 @@ struct ReservationCard: View {
                 HStack(spacing: 6) {
                     Image(systemName: "calendar")
                         .font(.system(size: 14))
-                        .foregroundColor(Color.fromHex("3B82F6"))
+                        .foregroundColor(Color(hex: "3B82F6"))
                     Text(formattedDate)
                         .font(.system(size: 12))
-                        .foregroundColor(Color.fromHex("94A3B8"))
+                        .foregroundColor(Color(hex: "94A3B8"))
                 }
                 
                 HStack(spacing: 6) {
                     Image(systemName: "clock")
                         .font(.system(size: 14))
-                        .foregroundColor(Color.fromHex("3B82F6"))
+                        .foregroundColor(Color(hex: "3B82F6"))
                     Text(formattedTime)
                         .font(.system(size: 12))
-                        .foregroundColor(Color.fromHex("94A3B8"))
+                        .foregroundColor(Color(hex: "94A3B8"))
                 }
                 
                 HStack(spacing: 6) {
                     Image(systemName: "person.2")
                         .font(.system(size: 14))
-                        .foregroundColor(Color.fromHex("3B82F6"))
+                        .foregroundColor(Color(hex: "3B82F6"))
                     Text("\(reservation.guest_count)")
                         .font(.system(size: 12))
-                        .foregroundColor(Color.fromHex("94A3B8"))
+                        .foregroundColor(Color(hex: "94A3B8"))
                 }
             }
             .padding(.horizontal, 16)
@@ -410,14 +410,14 @@ struct ReservationCard: View {
                          }) {
                              Text("Cancel")
                                  .font(.system(size: 14, weight: .medium))
-                                 .foregroundColor(Color.fromHex("EF4444"))
+                                 .foregroundColor(Color(hex: "EF4444"))
                                  .frame(maxWidth: .infinity)
                                  .padding(.vertical, 12)
-                                 .background(Color.fromHex("EF4444").opacity(0.15))
+                                 .background(Color(hex: "EF4444").opacity(0.15))
                                  .cornerRadius(12)
                                  .overlay(
                                      RoundedRectangle(cornerRadius: 12)
-                                         .stroke(Color.fromHex("EF4444").opacity(0.3), lineWidth: 1)
+                                         .stroke(Color(hex: "EF4444").opacity(0.3), lineWidth: 1)
                                  )
                          }
                     }
@@ -443,33 +443,33 @@ enum ReservationStatus: String {
     
     var color: Color {
         switch self {
-        case .confirmed: return Color.fromHex("22C55E")
-        case .pending: return Color.fromHex("EAB308")
-        case .cancelled: return Color.fromHex("EF4444")
+        case .confirmed: return Color(hex: "22C55E")
+        case .pending: return Color(hex: "EAB308")
+        case .cancelled: return Color(hex: "EF4444")
         }
     }
     
     var backgroundColor: Color {
         switch self {
-        case .confirmed: return Color.fromHex("22C55E").opacity(0.05)
-        case .pending: return Color.fromHex("EAB308").opacity(0.05)
-        case .cancelled: return Color.fromHex("EF4444").opacity(0.05)
+        case .confirmed: return Color(hex: "22C55E").opacity(0.05)
+        case .pending: return Color(hex: "EAB308").opacity(0.05)
+        case .cancelled: return Color(hex: "EF4444").opacity(0.05)
         }
     }
     
     var borderColor: Color {
         switch self {
-        case .confirmed: return Color.fromHex("22C55E").opacity(0.2)
-        case .pending: return Color.fromHex("EAB308").opacity(0.2)
-        case .cancelled: return Color.fromHex("EF4444").opacity(0.2)
+        case .confirmed: return Color(hex: "22C55E").opacity(0.2)
+        case .pending: return Color(hex: "EAB308").opacity(0.2)
+        case .cancelled: return Color(hex: "EF4444").opacity(0.2)
         }
     }
     
     var shadowColor: Color {
         switch self {
-        case .confirmed: return Color.fromHex("22C55E").opacity(0.15)
-        case .pending: return Color.fromHex("EAB308").opacity(0.15)
-        case .cancelled: return Color.fromHex("EF4444").opacity(0.15)
+        case .confirmed: return Color(hex: "22C55E").opacity(0.15)
+        case .pending: return Color(hex: "EAB308").opacity(0.15)
+        case .cancelled: return Color(hex: "EF4444").opacity(0.15)
         }
     }
 }

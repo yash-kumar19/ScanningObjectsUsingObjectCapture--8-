@@ -14,15 +14,15 @@ struct DashboardStat: Identifiable {
 
 struct RevenueData: Identifiable {
     let id = UUID()
-    let day: String
+    let date: Date
     let value: Double
 }
 
-struct ViewsData: Identifiable {
+struct TrendData: Identifiable {
     let id = UUID()
-    let day: String
-    let views: Int
+    let date: Date
     let orders: Int
+    let reservations: Int
 }
 
 // MARK: - Helper Components
@@ -50,89 +50,200 @@ struct DashboardCard<Content: View>: View {
 
 // MARK: - Screen
 struct OwnerDashboardScreen: View {
-    // MARK: - Data
-    let stats: [DashboardStat] = [
-        DashboardStat(
-            id: "revenue",
-            title: "Total Revenue",
-            value: "$24,580",
-            change: "+12.5%",
-            isPositive: true,
-            icon: "dollarsign",
-            gradientColors: [Color(hex: "2b7fff"), Color(hex: "3b82f6")]
-        ),
-        DashboardStat(
-            id: "views",
-            title: "Menu Views",
-            value: "8,432",
-            change: "+8.2%",
-            isPositive: true,
-            icon: "eye",
-            gradientColors: [Color(hex: "8b5cf6"), Color(hex: "a78bfa")]
-        ),
-        DashboardStat(
-            id: "reservations",
-            title: "Reservations",
-            value: "156",
-            change: "-3.1%",
-            isPositive: false,
-            icon: "calendar",
-            gradientColors: [Color(hex: "10b981"), Color(hex: "34d399")]
-        ),
-        DashboardStat(
-            id: "growth",
-            title: "Growth Rate",
-            value: "23.8%",
-            change: "+5.4%",
-            isPositive: true,
-            icon: "chart.line.uptrend.xyaxis",
-            gradientColors: [Color(hex: "f59e0b"), Color(hex: "fbbf24")]
-        )
-    ]
+    @StateObject private var supabase = SupabaseManager.shared
     
-    let revenueData: [RevenueData] = [
-        RevenueData(day: "Mon", value: 2400),
-        RevenueData(day: "Tue", value: 3200),
-        RevenueData(day: "Wed", value: 2800),
-        RevenueData(day: "Thu", value: 3900),
-        RevenueData(day: "Fri", value: 4800),
-        RevenueData(day: "Sat", value: 5200),
-        RevenueData(day: "Sun", value: 4100)
-    ]
+    var onTabSelect: ((Int) -> Void)? = nil
     
-    let viewsData: [ViewsData] = [
-        ViewsData(day: "Mon", views: 1200, orders: 450),
-        ViewsData(day: "Tue", views: 1500, orders: 620),
-        ViewsData(day: "Wed", views: 1100, orders: 380),
-        ViewsData(day: "Thu", views: 1800, orders: 720),
-        ViewsData(day: "Fri", views: 2200, orders: 980),
-        ViewsData(day: "Sat", views: 2600, orders: 1150),
-        ViewsData(day: "Sun", views: 1900, orders: 850)
-    ]
+    // MARK: - States
+    @State private var restaurant: Restaurant? = nil
+    @State private var orders: [Order] = []
+    @State private var reservations: [Reservation] = []
+    @State private var dishes: [Dish] = []
+    @State private var isLoading = true
+    @State private var isRefreshing = false
+    @State private var errorMessage: String? = nil
+    
+    // MARK: - Computed Properties
+    var stats: [DashboardStat] {
+        let completedOrders = orders.filter { $0.status == .completed }
+        let totalRevenue = completedOrders.reduce(0.0) { $0 + $1.total }
+        let totalOrdersCount = orders.count
+        let totalReservationsCount = reservations.count
+        let completedCount = completedOrders.count
+        let avgOrderValue = completedCount > 0 ? (totalRevenue / Double(completedCount)) : 0.0
+        
+        return [
+            DashboardStat(
+                id: "revenue",
+                title: "Total Revenue",
+                value: String(format: "$%.2f", totalRevenue),
+                change: "Live",
+                isPositive: true,
+                icon: "dollarsign",
+                gradientColors: [Color(hex: "2b7fff"), Color(hex: "3b82f6")]
+            ),
+            DashboardStat(
+                id: "orders",
+                title: "Total Orders",
+                value: "\(totalOrdersCount)",
+                change: "Live",
+                isPositive: true,
+                icon: "cart.fill",
+                gradientColors: [Color(hex: "8b5cf6"), Color(hex: "a78bfa")]
+            ),
+            DashboardStat(
+                id: "reservations",
+                title: "Reservations",
+                value: "\(totalReservationsCount)",
+                change: "Live",
+                isPositive: true,
+                icon: "calendar",
+                gradientColors: [Color(hex: "10b981"), Color(hex: "34d399")]
+            ),
+            DashboardStat(
+                id: "avg_order",
+                title: "Avg Order Value",
+                value: String(format: "$%.2f", avgOrderValue),
+                change: "Live",
+                isPositive: true,
+                icon: "chart.bar.fill",
+                gradientColors: [Color(hex: "f59e0b"), Color(hex: "fbbf24")]
+            )
+        ]
+    }
+    
+    var computedRevenueData: [RevenueData] {
+        let calendar = Calendar.current
+        let now = Date()
+        let startOfToday = calendar.startOfDay(for: now)
+        guard let startDate = calendar.date(byAdding: .day, value: -6, to: startOfToday) else { return [] }
+        
+        var dayDates: [Date] = []
+        for i in 0..<7 {
+            if let d = calendar.date(byAdding: .day, value: i, to: startDate) {
+                dayDates.append(calendar.startOfDay(for: d))
+            }
+        }
+        
+        let localFormatter = DateFormatter()
+        localFormatter.dateFormat = "yyyy-MM-dd"
+        localFormatter.timeZone = TimeZone.current
+        
+        return dayDates.map { date in
+            let localKey = localFormatter.string(from: date)
+            
+            let dayRevenue = orders.filter { order in
+                guard order.status == .completed,
+                      let orderDate = parseISO8601Date(order.created_at) else { return false }
+                return localFormatter.string(from: orderDate) == localKey
+            }.reduce(0.0) { $0 + $1.total }
+            
+            return RevenueData(date: date, value: dayRevenue)
+        }
+    }
+    
+    var computedTrendData: [TrendData] {
+        let calendar = Calendar.current
+        let now = Date()
+        let startOfToday = calendar.startOfDay(for: now)
+        guard let startDate = calendar.date(byAdding: .day, value: -6, to: startOfToday) else { return [] }
+        
+        var dayDates: [Date] = []
+        for i in 0..<7 {
+            if let d = calendar.date(byAdding: .day, value: i, to: startDate) {
+                dayDates.append(calendar.startOfDay(for: d))
+            }
+        }
+        
+        let localFormatter = DateFormatter()
+        localFormatter.dateFormat = "yyyy-MM-dd"
+        localFormatter.timeZone = TimeZone.current
+        
+        let utcFormatter = DateFormatter()
+        utcFormatter.dateFormat = "yyyy-MM-dd"
+        utcFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+        
+        return dayDates.map { date in
+            let localKey = localFormatter.string(from: date)
+            let utcKey = utcFormatter.string(from: date)
+            
+            let dayOrdersCount = orders.filter { order in
+                guard let orderDate = parseISO8601Date(order.created_at) else { return false }
+                return localFormatter.string(from: orderDate) == localKey
+            }.count
+            
+            let dayReservationsCount = reservations.filter { res in
+                return res.reservation_date == utcKey
+            }.count
+            
+            return TrendData(date: date, orders: dayOrdersCount, reservations: dayReservationsCount)
+        }
+    }
     
     // MARK: - Body
-    @State private var isLoading = true
-    
     var body: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
             
-            // 3. Content
-            GeometryReader { geometry in
-                ScrollView {
-                    VStack(spacing: 24) {
-                        // Header
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Dashboard")
-                                .font(.system(size: 34, weight: .bold))
-                                .foregroundColor(.white)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 24) {
+                    // Header
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Dashboard")
+                            .font(.system(size: 34, weight: .bold))
+                            .foregroundColor(.white)
+                        
+                        if isLoading {
+                            Text("Loading your restaurant overview...")
+                                .font(.body)
+                                .foregroundColor(Color.white.opacity(0.6))
+                        } else if let restaurant = restaurant {
+                            Text("Welcome back to \(restaurant.name)! Here's your overview")
+                                .font(.body)
+                                .foregroundColor(Color.white.opacity(0.6))
+                        } else {
                             Text("Welcome back! Here's your restaurant overview")
                                 .font(.body)
                                 .foregroundColor(Color.white.opacity(0.6))
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, 24)
-                        .skeleton(isLoading: isLoading)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 24)
+                    .skeleton(isLoading: isLoading)
+                        
+                        // Error Recovery Banner
+                        if let error = errorMessage {
+                            HStack(spacing: 12) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.orange)
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.8))
+                                    .lineLimit(2)
+                                Spacer()
+                                Button(action: {
+                                    Task {
+                                        await loadDashboardData()
+                                    }
+                                }) {
+                                    Text("Retry")
+                                        .font(.caption)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(Color.white.opacity(0.15))
+                                        .cornerRadius(8)
+                                }
+                            }
+                            .padding()
+                            .background(Color.orange.opacity(0.15))
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                            )
+                        }
                         
                         // Stats Grid
                         LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
@@ -163,7 +274,7 @@ struct OwnerDashboardScreen: View {
                                             .font(.caption)
                                             .foregroundColor(Color.white.opacity(0.6))
                                         
-                                        // Value and Change
+                                        // Value and Live status
                                         VStack(alignment: .leading, spacing: 4) {
                                             Text(stat.value)
                                                 .font(.title3)
@@ -171,12 +282,13 @@ struct OwnerDashboardScreen: View {
                                                 .foregroundColor(.white)
                                             
                                             HStack(spacing: 2) {
-                                                Image(systemName: stat.isPositive ? "arrow.up" : "arrow.down")
-                                                    .font(.system(size: 12))
+                                                Circle()
+                                                    .fill(Color(hex: "4ade80"))
+                                                    .frame(width: 6, height: 6)
                                                 Text(stat.change)
                                                     .font(.caption)
                                             }
-                                            .foregroundColor(stat.isPositive ? Color(hex: "4ade80") : Color(hex: "f87171"))
+                                            .foregroundColor(Color(hex: "4ade80"))
                                         }
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -193,9 +305,9 @@ struct OwnerDashboardScreen: View {
                             
                             DashboardCard {
                                 Chart {
-                                    ForEach(revenueData) { item in
+                                    ForEach(computedRevenueData) { item in
                                         AreaMark(
-                                            x: .value("Day", item.day),
+                                            x: .value("Day", item.date),
                                             y: .value("Revenue", item.value)
                                         )
                                         .foregroundStyle(
@@ -208,7 +320,7 @@ struct OwnerDashboardScreen: View {
                                         .interpolationMethod(.catmullRom)
                                         
                                         LineMark(
-                                            x: .value("Day", item.day),
+                                            x: .value("Day", item.date),
                                             y: .value("Revenue", item.value)
                                         )
                                         .foregroundStyle(Color(hex: "2b7fff"))
@@ -217,10 +329,14 @@ struct OwnerDashboardScreen: View {
                                     }
                                 }
                                 .chartXAxis {
-                                    AxisMarks(values: .automatic) { _ in
-                                        AxisValueLabel()
-                                            .foregroundStyle(Color.white.opacity(0.4))
-                                            .font(.caption)
+                                    AxisMarks(values: .stride(by: .day, count: 1)) { value in
+                                        if let date = value.as(Date.self) {
+                                            AxisValueLabel {
+                                                Text(date, format: .dateTime.weekday(.abbreviated))
+                                                    .foregroundStyle(Color.white.opacity(0.4))
+                                                    .font(.caption)
+                                            }
+                                        }
                                     }
                                 }
                                 .chartYAxis {
@@ -237,38 +353,42 @@ struct OwnerDashboardScreen: View {
                         }
                         .skeleton(isLoading: isLoading)
                         
-                        // Views & Orders Chart
+                        // Orders vs Reservations Chart
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Menu Views vs Orders")
+                            Text("Orders vs Reservations Trend")
                                 .font(.headline)
                                 .foregroundColor(.white)
                             
                             DashboardCard {
                                 VStack {
                                     Chart {
-                                        ForEach(viewsData) { item in
+                                        ForEach(computedTrendData) { item in
                                             BarMark(
-                                                x: .value("Day", item.day),
-                                                y: .value("Count", item.views)
+                                                x: .value("Day", item.date),
+                                                y: .value("Count", item.orders)
                                             )
                                             .foregroundStyle(Color(hex: "2b7fff"))
                                             .cornerRadius(4)
-                                            .position(by: .value("Type", "Views"))
+                                            .position(by: .value("Type", "Orders"))
                                             
                                             BarMark(
-                                                x: .value("Day", item.day),
-                                                y: .value("Count", item.orders)
+                                                x: .value("Day", item.date),
+                                                y: .value("Count", item.reservations)
                                             )
-                                            .foregroundStyle(Color(hex: "8b5cf6"))
+                                            .foregroundStyle(Color(hex: "10b981"))
                                             .cornerRadius(4)
-                                            .position(by: .value("Type", "Orders"))
+                                            .position(by: .value("Type", "Reservations"))
                                         }
                                     }
                                     .chartXAxis {
-                                        AxisMarks(values: .automatic) { _ in
-                                            AxisValueLabel()
-                                                .foregroundStyle(Color.white.opacity(0.4))
-                                                .font(.caption)
+                                        AxisMarks(values: .stride(by: .day, count: 1)) { value in
+                                            if let date = value.as(Date.self) {
+                                                AxisValueLabel {
+                                                    Text(date, format: .dateTime.weekday(.abbreviated))
+                                                        .foregroundStyle(Color.white.opacity(0.4))
+                                                        .font(.caption)
+                                                }
+                                            }
                                         }
                                     }
                                     .chartYAxis {
@@ -288,16 +408,16 @@ struct OwnerDashboardScreen: View {
                                             RoundedRectangle(cornerRadius: 2)
                                                 .fill(Color(hex: "2b7fff"))
                                                 .frame(width: 12, height: 12)
-                                            Text("Views")
+                                            Text("Orders")
                                                 .font(.caption)
                                                 .foregroundColor(Color.white.opacity(0.6))
                                         }
                                         
                                         HStack(spacing: 8) {
                                             RoundedRectangle(cornerRadius: 2)
-                                                .fill(Color(hex: "8b5cf6"))
+                                                .fill(Color(hex: "10b981"))
                                                 .frame(width: 12, height: 12)
-                                            Text("Orders")
+                                            Text("Reservations")
                                                 .font(.caption)
                                                 .foregroundColor(Color.white.opacity(0.6))
                                         }
@@ -309,10 +429,13 @@ struct OwnerDashboardScreen: View {
                         .skeleton(isLoading: isLoading)
                         
                         // Quick Actions
-                        HStack(spacing: 12) {
-                            Button(action: { /* Add New Dish */ }) {
+                        VStack {
+                            Button(action: {
+                                onTabSelect?(1)
+                                NotificationCenter.default.post(name: .ownerShouldShowAddDishSheet, object: nil)
+                            }) {
                                 Text("Add New Dish")
-                                    .font(.system(size: 14, weight: .medium))
+                                    .font(.system(size: 14, weight: .semibold))
                                     .foregroundColor(.white)
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 16)
@@ -326,37 +449,85 @@ struct OwnerDashboardScreen: View {
                                     .cornerRadius(16)
                                     .shadow(color: Color(hex: "2b7fff").opacity(0.4), radius: 12, x: 0, y: 4)
                             }
-                            
-                            Button(action: { /* View Reports */ }) {
-                                Text("View Reports")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 16)
-                                    .background(Color.white.opacity(0.05))
-                                    .cornerRadius(16)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 16)
-                                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                                    )
-                            }
                         }
                         .padding(.bottom, 120) // Extra padding for bottom tab bar
                         .skeleton(isLoading: isLoading)
                     }
                     .padding(.horizontal, 24)
                     .frame(maxWidth: 500) // Constrain width for larger screens
-                    .frame(width: geometry.size.width) // Ensure full width alignment
+                    .frame(maxWidth: .infinity) // Ensure full width alignment
                 }
-                .onAppear {
-                    // Simulate loading
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        withAnimation {
-                            isLoading = false
-                        }
-                    }
+                .refreshable {
+                    await loadDashboardData()
                 }
             }
+        .task {
+            isLoading = true
+            await loadDashboardData()
+            withAnimation {
+                isLoading = false
+            }
+            
+            // Polling loop
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 60 * 1_000_000_000) // 60s poll
+                await loadDashboardData()
+            }
         }
+    }
+    
+    // MARK: - Private Methods
+    private func loadDashboardData() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
+        
+        guard let userId = supabase.currentUser?.id else {
+            await MainActor.run {
+                errorMessage = "User not authenticated"
+            }
+            return
+        }
+        
+        do {
+            // Step 1: Resolve restaurant ID first
+            let fetchedRestaurant = try await supabase.fetchOwnerRestaurant()
+            
+            // Step 2: Set start date to normalized start-of-day 7 days ago (6 days back from today)
+            let calendar = Calendar.current
+            let now = Date()
+            let startOfToday = calendar.startOfDay(for: now)
+            guard let sevenDaysAgo = calendar.date(byAdding: .day, value: -6, to: startOfToday) else { return }
+            
+            // Step 3: Fetch orders, reservations, and dishes in parallel
+            async let ordersTask = supabase.fetchRestaurantOrders(restaurantId: userId, startDate: sevenDaysAgo)
+            async let reservationsTask = supabase.fetchOwnerReservations(startDate: sevenDaysAgo)
+            async let dishesTask = supabase.fetchOwnerDishes()
+            
+            let (fetchedOrders, fetchedReservations, fetchedDishes) = try await (ordersTask, reservationsTask, dishesTask)
+            
+            await MainActor.run {
+                self.restaurant = fetchedRestaurant
+                self.orders = fetchedOrders
+                self.reservations = fetchedReservations
+                self.dishes = fetchedDishes
+                self.errorMessage = nil
+            }
+        } catch {
+            print("❌ Error loading dashboard data: \(error.localizedDescription)")
+            await MainActor.run {
+                self.errorMessage = error.localizedDescription
+            }
+        }
+    }
+    
+    private func parseISO8601Date(_ string: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        if let date = formatter.date(from: string) {
+            return date
+        }
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: string)
     }
 }

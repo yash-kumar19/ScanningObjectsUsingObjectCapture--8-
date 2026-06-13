@@ -3,6 +3,7 @@ import SwiftUI
 struct BottomTabBar: View {
     @Binding var selectedTab: Int
     @Namespace private var animation
+    @ObservedObject var cartManager = CartManager.shared
     
     var body: some View {
         HStack(spacing: 0) {
@@ -23,16 +24,17 @@ struct BottomTabBar: View {
             )
             
             TabBarItem(
-                icon: "calendar",
-                title: "Bookings",
+                icon: "cart",
+                title: "Cart",
                 index: 2,
                 selectedTab: $selectedTab,
-                animation: animation
+                animation: animation,
+                badgeCount: cartManager.itemCount
             )
             
             TabBarItem(
-                icon: "person",
-                title: "Profile",
+                icon: "storefront.fill",
+                title: "Partners",
                 index: 3,
                 selectedTab: $selectedTab,
                 animation: animation
@@ -71,6 +73,7 @@ struct TabBarItem: View {
     let index: Int
     @Binding var selectedTab: Int
     let animation: Namespace.ID
+    var badgeCount: Int = 0  // Optional badge count for cart
     
     var body: some View {
         Button {
@@ -102,9 +105,23 @@ struct TabBarItem: View {
                 
                 // Icon + Text
                 VStack(spacing: 4) {
-                    Image(systemName: icon)
-                        .font(.system(size: 24)) // w-6 h-6 = 24px
-                        .foregroundColor(selectedTab == index ? Color(hex: "2b7fff") : Color.white.opacity(0.6))
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: icon)
+                            .font(.system(size: 24))
+                            .foregroundColor(selectedTab == index ? Color(hex: "2b7fff") : Color.white.opacity(0.6))
+                        
+                        // Badge for cart count
+                        if badgeCount > 0 {
+                            Text("\(badgeCount)")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(minWidth: 16, minHeight: 16)
+                                .padding(.horizontal, 4)
+                                .background(Color.red)
+                                .clipShape(Circle())
+                                .offset(x: 8, y: -8)
+                        }
+                    }
                     
                     Text(title)
                         .font(.system(size: 12, weight: .medium)) // text-xs = 12px

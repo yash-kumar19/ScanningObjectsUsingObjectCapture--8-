@@ -16,22 +16,6 @@ struct ObjectCaptureContainer: View {
             Color.black.ignoresSafeArea()
             
             VStack {
-                // Header with Cancel button
-                if !showReconstructionView {
-                    HStack {
-                        Button(action: {
-                            appModel.state = .restart
-                        }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.title)
-                                .foregroundColor(.white)
-                                .padding()
-                        }
-                        Spacer()
-                    }
-                    .zIndex(10)
-                }
-                
                 // Main Capture View
                 if appModel.state == .capturing {
                     if let session = appModel.objectCaptureSession {
@@ -66,6 +50,8 @@ struct ObjectCaptureContainer: View {
             } else if newState == .completed {
                 // ✅ Consume the actual URL captured by the system
                 processedModelURL = appModel.localModelURL
+            } else if newState == .restart || newState == .notSet {
+                dismiss()
             }
         }
         .sheet(isPresented: $showReconstructionView, onDismiss: {

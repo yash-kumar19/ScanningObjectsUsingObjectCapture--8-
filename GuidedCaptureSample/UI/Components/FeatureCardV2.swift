@@ -30,7 +30,7 @@ struct FeatureCardV2: View {
                 
                 Text(description)
                     .font(.system(size: 14))
-                    .foregroundColor(Color.fromHex("9CA3AF"))
+                    .foregroundColor(Color(hex: "9CA3AF"))
                     .lineLimit(2)
             }
             
@@ -40,7 +40,7 @@ struct FeatureCardV2: View {
         .background(
             ZStack {
                 // Glass blur effect
-                Color.fromHex("1A1F2E").opacity(0.6)
+                Color(hex: "1A1F2E").opacity(0.6)
                 
                 // Subtle gradient overlay
                 LinearGradient(

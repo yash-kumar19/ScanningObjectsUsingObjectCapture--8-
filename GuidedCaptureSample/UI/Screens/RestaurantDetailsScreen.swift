@@ -3,17 +3,28 @@ import SwiftUI
 struct RestaurantDetailsScreenV2: View {
     // Callbacks
     var onBack: () -> Void
-    var onViewFullMenu: () -> Void
     var onDishClick: (String) -> Void
     
     // Data
-    let restaurantProfile: Profile
-    @State private var liveProfile: Profile? // For real-time updates
+    let restaurant: Restaurant
+    @State private var liveRestaurant: Restaurant? // For real-time updates
+    
+    // Cart System
+    @ObservedObject var cartManager = CartManager.shared
+    @State private var showCartScreen = false
+    @State private var showRestaurantConflictAlert = false
+    @State private var pendingDish: Dish?
     
     // State
     @State private var selectedCategory: String = "Popular"
-    @State private var showBookingSheet = false
-    @State private var showSuccessAlert = false
+    @State private var activeImageIndex = 0
+    private let galleryTimer = Timer.publish(every: 3.0, on: .main, in: .common).autoconnect()
+    
+    // Order checkout flow states
+    @State private var showCustomerInfoSheet = false
+    @State private var pendingConfirmState: OrderConfirmState? = nil
+    @State private var pendingOrderId: String? = nil
+    @State private var customerNamePrefill: String = ""
     
     @State private var dishes: [Dish] = []
     @State private var selectedDishForAR: Dish?
@@ -36,20 +47,69 @@ struct RestaurantDetailsScreenV2: View {
         return cats
     }
     
-    // Use live profile if available, otherwise fall back to initial
-    var displayedProfile: Profile {
-        liveProfile ?? restaurantProfile
+    // Use live restaurant if available, otherwise fall back to initial
+    var displayedRestaurant: Restaurant {
+        liveRestaurant ?? restaurant
     }
     
     // Data accessors
-    var restaurantName: String { displayedProfile.restaurant_name ?? "Restaurant" }
-    var location: String { displayedProfile.address ?? "Downtown" }
-    var cuisine: String { displayedProfile.cuisine ?? "Fine Dining" }
-    var phone: String { displayedProfile.phone ?? "+1 (555) 000-0000" }
+    var restaurantName: String { displayedRestaurant.name }
+    var location: String { displayedRestaurant.address ?? "Downtown" }
+    var cuisine: String { displayedRestaurant.cuisine_type ?? "Fine Dining" }
+    var phone: String { displayedRestaurant.phone ?? "+1 (555) 000-0000" }
     
-    // Using real data fields from Profile
-    var hours: String { displayedProfile.opening_hours ?? "11:00 AM - 10:00 PM" }
-    var description: String { displayedProfile.bio ?? "Experience culinary excellence in our establishment. Owned by \(displayedProfile.full_name ?? "our chef")." }
+    struct OpeningStatus {
+        let isOpen: Bool
+        let text: String
+    }
+    
+    var openingStatus: OpeningStatus {
+        guard let hoursDict = displayedRestaurant.opening_hours else {
+            return OpeningStatus(isOpen: true, text: "Open Now")
+        }
+        
+        let now = Date()
+        let calendar = Calendar.current
+        let weekdayIndex = calendar.component(.weekday, from: now) - 1
+        let days = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
+        let todayKey = days[weekdayIndex]
+        
+        guard let hours = hoursDict[todayKey] else {
+            return OpeningStatus(isOpen: false, text: "Closed Today")
+        }
+        
+        if hours.isClosed == true {
+            return OpeningStatus(isOpen: false, text: "Closed Today")
+        }
+        
+        guard let openStr = hours.open, let closeStr = hours.close else {
+            return OpeningStatus(isOpen: true, text: "Open Now")
+        }
+        
+        let openComponents = openStr.split(separator: ":").compactMap { Int($0) }
+        let closeComponents = closeStr.split(separator: ":").compactMap { Int($0) }
+        
+        guard openComponents.count >= 2, closeComponents.count >= 2 else {
+            return OpeningStatus(isOpen: true, text: "Open Now")
+        }
+        
+        let currentHour = calendar.component(.hour, from: now)
+        let currentMinute = calendar.component(.minute, from: now)
+        
+        let currentMinutesSinceMidnight = currentHour * 60 + currentMinute
+        let openMinutesSinceMidnight = openComponents[0] * 60 + openComponents[1]
+        let closeMinutesSinceMidnight = closeComponents[0] * 60 + closeComponents[1]
+        
+        if currentMinutesSinceMidnight >= openMinutesSinceMidnight && currentMinutesSinceMidnight <= closeMinutesSinceMidnight {
+            return OpeningStatus(isOpen: true, text: "Open until \(closeStr)")
+        } else {
+            return OpeningStatus(isOpen: false, text: "Closed. Opens at \(openStr)")
+        }
+    }
+    
+    // Using formatted status
+    var hours: String { openingStatus.text }
+    var description: String { displayedRestaurant.description ?? "Experience culinary excellence in our establishment." }
     
     var filteredDishes: [Dish] {
         if selectedCategory == "Popular" {
@@ -64,7 +124,7 @@ struct RestaurantDetailsScreenV2: View {
         ZStack {
             Theme.background.ignoresSafeArea()
             
-            ScrollView {
+            ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
                     heroHeader
                     infoCard
@@ -73,22 +133,83 @@ struct RestaurantDetailsScreenV2: View {
                 }
             }
             .ignoresSafeArea()
-            
-            bottomActionButtons
+            .safeAreaInset(edge: .bottom) {
+                // Floating Cart Bar (only shown when cart has items)
+                if cartManager.itemCount > 0 {
+                    FloatingCartBar(
+                        cartManager: cartManager,
+                        onTap: {
+                            showCartScreen = true
+                        }
+                    )
+                }
+            }
         }
-        .sheet(isPresented: $showBookingSheet) {
-            BookingSheet(
-                ownerId: displayedProfile.id,
-                restaurantName: displayedProfile.restaurant_name ?? "Restaurant",
-                onDismiss: { showBookingSheet = false },
-                onSuccess: { showSuccessAlert = true },
-                isPresented: $showBookingSheet
+        .sheet(isPresented: $showCartScreen) {
+            CartScreen(onCheckout: {
+                showCartScreen = false
+                // Pre-fill name from logged-in profile's full_name
+                if let profile = SupabaseManager.shared.currentUser {
+                    Task {
+                        let name = (try? await fetchProfileFullName(userId: profile.id)) ?? ""
+                        await MainActor.run {
+                            customerNamePrefill = name
+                            showCustomerInfoSheet = true
+                        }
+                    }
+                } else {
+                    customerNamePrefill = ""
+                    showCustomerInfoSheet = true
+                }
+            })
+        }
+        .sheet(isPresented: $showCustomerInfoSheet) {
+            CustomerInfoSheet(
+                prefillName: customerNamePrefill,
+                onConfirm: { name, e164Phone, notes in
+                    pendingConfirmState = OrderConfirmState(
+                        name: name, phone: e164Phone, notes: notes,
+                        restaurantId: cartManager.restaurantId ?? displayedRestaurant.id
+                    )
+                    showCustomerInfoSheet = false
+                }
             )
         }
-        .alert("Booking Confirmed!", isPresented: $showSuccessAlert) {
-            Button("OK", role: .cancel) { }
+        .fullScreenCover(item: $pendingConfirmState) { state in
+            OrderConfirmationScreen(
+                restaurantId: state.restaurantId,
+                customerName: state.name,
+                customerPhone: state.phone,
+                specialNotes: state.notes,
+                paymentMethod: .cash,
+                onOrderPlaced: { orderId in
+                    pendingOrderId = orderId
+                    pendingConfirmState = nil
+                    // Clear cart after checkout
+                    cartManager.clear()
+                },
+                onDismiss: {
+                    pendingOrderId = nil
+                    pendingConfirmState = nil
+                }
+            )
+        }
+        .fullScreenCover(item: Binding(
+            get: { pendingOrderId.map { OrderIdWrapper(id: $0) } },
+            set: { if $0 == nil { pendingOrderId = nil } }
+        )) { wrapper in
+            CustomerOrderStatusScreen(orderId: wrapper.id)
+        }
+        .alert("Replace cart items?", isPresented: $showRestaurantConflictAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Clear Cart", role: .destructive) {
+                cartManager.clear()
+                if let dish = pendingDish {
+                    handleAddToCart(dish)
+                }
+            }
         } message: {
-            Text("Your table has been reserved successfully.")
+            Text("Your cart contains items from another restaurant. Clear it to add items from this restaurant?")
         }
         .fullScreenCover(isPresented: $show3DPreview) {
             // ✅ Inline 3D Preview (same pattern as OwnerMenuScreen)
@@ -96,23 +217,11 @@ struct RestaurantDetailsScreenV2: View {
                 Color.black.ignoresSafeArea()
                 
                 if let localURL = local3DModelURL {
-                    // Show the model using QuickLook
-                    ZStack(alignment: .topTrailing) {
-                        ModelView(modelFile: localURL, endCaptureCallback: {
-                            show3DPreview = false
-                        })
-                        .ignoresSafeArea()
-                        
-                        // Close Button
-                        Button(action: { show3DPreview = false }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 30))
-                                .foregroundColor(.white)
-                                .background(Color.black.opacity(0.4))
-                                .clipShape(Circle())
-                        }
-                        .padding(24)
-                    }
+                    // Show the model using CustomModelViewer (which has its own close button)
+                    ModelView(modelFile: localURL, endCaptureCallback: {
+                        show3DPreview = false
+                    })
+                    .ignoresSafeArea()
                 } else if downloader.isDownloading {
                     // Show download progress
                     VStack(spacing: 20) {
@@ -216,25 +325,71 @@ struct RestaurantDetailsScreenV2: View {
     
     private var heroHeader: some View {
         ZStack(alignment: .top) {
-            AsyncImage(url: URL(string: displayedProfile.logo_url ?? displayedProfile.avatar_url ?? "https://images.unsplash.com/photo-1559339352-11d035aa65de")) { phase in
-                switch phase {
-                case .success(let image):
-                    image.resizable().aspectRatio(contentMode: .fill)
-                case .failure, .empty:
-                    Rectangle().fill(Color(hex: "1e293b"))
-                @unknown default:
-                    Rectangle().fill(Color(hex: "1e293b"))
+            let urls = displayedRestaurant.gallery_urls ?? []
+            
+            if urls.count > 1 {
+                TabView(selection: $activeImageIndex) {
+                    ForEach(0..<urls.count, id: \.self) { index in
+                        AsyncImage(url: URL(string: urls[index])) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image.resizable().aspectRatio(contentMode: .fill)
+                            case .failure, .empty:
+                                Rectangle().fill(Color(hex: "1e293b"))
+                            @unknown default:
+                                Rectangle().fill(Color(hex: "1e293b"))
+                            }
+                        }
+                        .frame(height: 280)
+                        .clipped()
+                        .tag(index)
+                    }
                 }
+                .tabViewStyle(.page(indexDisplayMode: .always))
+                .frame(height: 280)
+                .onReceive(galleryTimer) { _ in
+                    if urls.count > 1 {
+                        withAnimation {
+                            activeImageIndex = (activeImageIndex + 1) % urls.count
+                        }
+                    }
+                }
+            } else if urls.count == 1, let firstUrl = urls.first {
+                AsyncImage(url: URL(string: firstUrl)) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().aspectRatio(contentMode: .fill)
+                    case .failure, .empty:
+                        Rectangle().fill(Color(hex: "1e293b"))
+                    @unknown default:
+                        Rectangle().fill(Color(hex: "1e293b"))
+                    }
+                }
+                .frame(height: 280)
+                .clipped()
+            } else {
+                AsyncImage(url: URL(string: displayedRestaurant.logo_url ?? "https://images.unsplash.com/photo-1559339352-11d035aa65de")) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().aspectRatio(contentMode: .fill)
+                    case .failure, .empty:
+                        Rectangle().fill(Color(hex: "1e293b"))
+                    @unknown default:
+                        Rectangle().fill(Color(hex: "1e293b"))
+                    }
+                }
+                .frame(height: 280)
+                .clipped()
             }
-            .frame(height: 280)
-            .clipped()
-            .overlay(
-                LinearGradient(
-                    colors: [.clear, .black.opacity(0.3)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+            
+            // Subtle shadow gradient overlay to ensure page dots are visible
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.4)],
+                startPoint: .top,
+                endPoint: .bottom
             )
+            .frame(height: 280)
+            .allowsHitTesting(false)
             
             // Top Nav
             HStack {
@@ -262,6 +417,7 @@ struct RestaurantDetailsScreenV2: View {
             .padding(.horizontal, 20)
             .padding(.top, 60)
         }
+        .frame(height: 280)
     }
     
     private var infoCard: some View {
@@ -407,14 +563,22 @@ struct RestaurantDetailsScreenV2: View {
                             image: dish.thumbnail_url ?? "",
                             hasModel: (dish.model_url?.isEmpty == false),
                             onAddToCart: {
-                                // Add to cart logic
+                                handleAddToCart(dish)
                             },
                             onViewAR: {
                                 // ✅ Trigger 3D Preview (inline pattern)
+                                print("🎯 [AR Button] Clicked for dish: \(dish.name)")
+                                print("🎯 [AR Button] Dish ID: \(dish.id)")
+                                print("🎯 [AR Button] Raw model_url from DB: \(dish.model_url ?? "nil")")
+                                
                                 if let modelURL = dish.model_url,
                                    !modelURL.isEmpty,
                                    let url = URL(string: modelURL) {
                                     // Best Practice: Set URL and reset states BEFORE showing sheet
+                                    print("✅ [AR Button] Valid URL created: \(url.absoluteString)")
+                                    print("✅ [AR Button] URL scheme: \(url.scheme ?? "nil")")
+                                    print("✅ [AR Button] URL host: \(url.host ?? "nil")")
+                                    
                                     selected3DModelURL = url
                                     local3DModelURL = nil
                                     download3DError = nil
@@ -422,6 +586,8 @@ struct RestaurantDetailsScreenV2: View {
                                     print("✅ 3D Preview triggered for dish: \(dish.name)")
                                 } else {
                                     print("⚠️ No 3D model URL for dish: \(dish.name)")
+                                    print("⚠️ model_url value: \(dish.model_url ?? "nil")")
+                                    print("⚠️ isEmpty: \(dish.model_url?.isEmpty ?? true)")
                                 }
                             }
                         )
@@ -434,64 +600,24 @@ struct RestaurantDetailsScreenV2: View {
         }
     }
     
-    private var bottomActionButtons: some View {
-        VStack {
-            Spacer()
-            
-            VStack(spacing: 12) {
-                Button(action: onViewFullMenu) {
-                    Text("View Full Menu")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color(hex: "1e293b"))
-                        .cornerRadius(16)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                        )
-                }
-                
-                Button(action: { showBookingSheet = true }) {
-                    Text("Make a Reservation")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color(hex: "3b82f6"))
-                        .cornerRadius(16)
-                        .shadow(color: Color.blue.opacity(0.4), radius: 12, x: 0, y: 4)
-                }
-            }
-            .padding(20)
-            .background(
-                LinearGradient(
-                    colors: [Theme.background.opacity(0), Theme.background.opacity(0.95), Theme.background],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-        }
-        .ignoresSafeArea(.keyboard)
-    }
+    
     
     private func loadData() async {
-        print("🔄 loadData() called for restaurant: \(displayedProfile.restaurant_name ?? "unknown")")
-        print("🔄 Owner ID: \(displayedProfile.id)")
+        print("🔄 loadData() called for restaurant: \(displayedRestaurant.name)")
+        print("🔄 Owner ID: \(displayedRestaurant.owner_id)")
         
         do {
             // Fetch dishes for this specific restaurant owner
-            let allDishes = try await SupabaseManager.shared.fetchDishes(ownerId: displayedProfile.id)
+            let allDishes = try await SupabaseManager.shared.fetchDishes(ownerId: displayedRestaurant.owner_id)
             
             print("✅ Fetched \(allDishes.count) dishes successfully")
             
-            // Fetch updated profile (for real-time bio/hours/address)
-            let updatedProfile = try await SupabaseManager.shared.fetchProfile(userId: displayedProfile.id)
+            // Fetch updated restaurant profile
+            let updatedRestaurant = try await SupabaseManager.shared.fetchPublicRestaurant(restaurantId: displayedRestaurant.id)
             
             await MainActor.run {
                 self.dishes = allDishes
-                self.liveProfile = updatedProfile
+                self.liveRestaurant = updatedRestaurant
                 print("✅ UI updated with \(allDishes.count) dishes")
             }
         } catch {
@@ -501,6 +627,35 @@ struct RestaurantDetailsScreenV2: View {
                 print("❌ URLError code: \(urlError.code.rawValue)")
                 print("❌ URLError description: \(urlError.errorUserInfo)")
             }
+        }
+    }
+    
+    // MARK: - Cart Helper Methods
+    
+    /// Handle adding dish to cart with restaurant conflict check
+    private func handleAddToCart(_ dish: Dish) {
+        // Check if trying to add from different restaurant
+        if cartManager.isDifferentRestaurant(dish) {
+            pendingDish = dish
+            showRestaurantConflictAlert = true
+            return
+        }
+        
+        // Add to cart (CartManager handles conflict callback)
+        cartManager.addItem(dish)
+        
+        // Store restaurant name if this is the first item
+        if cartManager.itemCount == 1 {
+            cartManager.restaurantName = restaurantName
+        }
+        
+        // Haptic feedback
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+        
+        // Show global toast notification
+        Task { @MainActor in
+            ToastManager.shared.show("\(dish.name) added to cart")
         }
     }
 }

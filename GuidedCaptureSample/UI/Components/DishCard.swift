@@ -90,20 +90,44 @@ struct DishCard: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(Color(hex: "60a5fa")) // Blue-400
                     
-                    Button(action: {
-                        if hasModel {
-                            onViewAR?() 
-                        } else {
-                            onAddToCart()
+                    if hasModel {
+                        // DUAL BUTTONS: Show both AR viewer and add-to-cart for 3D dishes
+                        HStack(spacing: 8) {
+                            // Eye button (AR viewer) - Purple/left
+                            Button(action: {
+                                onViewAR?()
+                            }) {
+                                Image(systemName: "eye.fill")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 36, height: 36)
+                                    .background(Color(hex: "8b5cf6")) // Purple-500
+                                    .clipShape(Circle())
+                                    .shadow(color: Color.purple.opacity(0.3), radius: 4, x: 0, y: 2)
+                            }
+                            
+                            // Plus button (add to cart) - Blue/right
+                            Button(action: onAddToCart) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 36, height: 36)
+                                    .background(Color(hex: "3b82f6")) // Blue-500
+                                    .clipShape(Circle())
+                                    .shadow(color: Color.blue.opacity(0.3), radius: 4, x: 0, y: 2)
+                            }
                         }
-                    }) {
-                        Image(systemName: hasModel ? "cube.transparent" : "plus")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(width: 36, height: 36) // Slightly larger button
-                            .background(Color(hex: "3b82f6")) // Blue-500
-                            .clipShape(Circle())
-                            .shadow(color: Color.blue.opacity(0.3), radius: 4, x: 0, y: 2)
+                    } else {
+                        // SINGLE BUTTON: Just add-to-cart for regular dishes
+                        Button(action: onAddToCart) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 36, height: 36)
+                                .background(Color(hex: "3b82f6")) // Blue-500
+                                .clipShape(Circle())
+                                .shadow(color: Color.blue.opacity(0.3), radius: 4, x: 0, y: 2)
+                        }
                     }
                 }
             }

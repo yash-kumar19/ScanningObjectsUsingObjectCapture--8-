@@ -250,19 +250,30 @@ extension PhotogrammetrySession.Output.ProcessingStage {
 
 private struct TitleView: View {
     var body: some View {
-        Text(LocalizedString.processingTitle)
-            .font(.largeTitle)
-            .fontWeight(.bold)
-
-    }
-
-    private struct LocalizedString {
-        static let processingTitle = NSLocalizedString(
-            "Processing title (Object Capture)",
-            bundle: Bundle.main,
-            value: "Processing",
-            comment: "Title of processing view during processing phase."
-        )
+        VStack(spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                Text("Capture Complete")
+                    .fontWeight(.bold)
+                    .foregroundColor(.green)
+            }
+            .font(.system(size: 14))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color.green.opacity(0.12))
+            .cornerRadius(20)
+            
+            Text("Generating 3D Model...")
+                .font(.system(size: 28, weight: .bold))
+                .foregroundColor(.white)
+                .multilineTextAlignment(.center)
+            
+            Text("Estimated Time: 2–4 Minutes")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 24)
     }
 }
 

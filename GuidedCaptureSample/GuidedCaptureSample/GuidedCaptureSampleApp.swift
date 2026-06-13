@@ -15,7 +15,9 @@ struct GuidedCaptureSampleApp: App {
         WindowGroup {
             RootView()
                 .onOpenURL { url in
-                    SupabaseManager.shared.handleRedirectURL(url)
+                    // Handle deep links via DeepLinkHandler
+                    // This will route menu links and OAuth callbacks appropriately
+                    _ = DeepLinkHandler.shared.handleURL(url)
                 }
                 .task {
                     AppDataModel.instance.resumePendingUploads()

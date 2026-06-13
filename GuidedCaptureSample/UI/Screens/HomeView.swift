@@ -2,14 +2,25 @@ import SwiftUI
 
 struct HomeView: View {
     @ObservedObject private var authManager = SupabaseManager.shared
+    @ObservedObject private var deepLinkHandler = DeepLinkHandler.shared
+    
     var onSwitchToOwner: () -> Void = {}
     var onLogout: () -> Void = {}
     
     @State private var selectedTab = 0
-    @State private var selectedRestaurant: Profile? // Track selected restaurant
+    @State private var selectedRestaurant: Restaurant? // Track selected restaurant
+    @State private var selectedRestaurantId: String? // Track restaurant ID from deep link
+    @State private var showQRScanner = false // Track QR scanner presentation
+
+    // Order flow
+    @State private var showCustomerInfoSheet = false
+    @State private var pendingOrderId: String? = nil
+    @State private var pendingConfirmState: OrderConfirmState? = nil
+    @State private var customerNamePrefill: String = ""
 
     @State private var isLoading = true
-    @State private var showSignup = true
+    @State private var showOwnerLogin = false
+    @State private var restaurants: [Restaurant] = []
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -19,7 +30,7 @@ struct HomeView: View {
             Group {
                 if selectedTab == 0 {
                     // Home Tab
-                    ScrollView {
+                    ScrollView(showsIndicators: false) {
                         VStack(spacing: 0) {
                             // Hero Section
                             heroSection
@@ -41,52 +52,47 @@ struct HomeView: View {
                     }
                     .background(Color.appBackground)
                     .onAppear {
-                        // Simulate loading
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            withAnimation {
-                                isLoading = false
-                            }
-                        }
+                        loadHomeData()
                     }
                 } else if selectedTab == 1 {
                     // Search Tab
-                    SearchScreen(onRestaurantClick: { profile in
+                    SearchScreen(onRestaurantClick: { restaurant in
                          withAnimation {
-                             selectedRestaurant = profile
+                             selectedRestaurant = restaurant
                          }
                     })
                 } else if selectedTab == 2 {
-                    // Bookings Tab
-                    MyReservationsScreen()
-                } else {
-                    // Profile Tab
-                    if SupabaseManager.shared.isAuthenticated {
-                        ProfileScreen(onLogout: onLogout, onSwitchToOwner: onSwitchToOwner)
-                    } else {
-                        if showSignup {
-                            SignupScreen(
-                                onSignupSuccess: {
-                                    withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                                        showSignup = false
-                                    }
-                                },
-                                onBackToLogin: {
-                                    withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                                        showSignup = false
-                                    }
+                    // Cart Tab
+                    CartScreen(onCheckout: {
+                        // Pre-fill name from logged-in profile's full_name (never email)
+                        if let profile = SupabaseManager.shared.currentUser {
+                            Task {
+                                let name = (try? await fetchProfileFullName(userId: profile.id)) ?? ""
+                                await MainActor.run {
+                                    customerNamePrefill = name
+                                    showCustomerInfoSheet = true
                                 }
-                            )
+                            }
                         } else {
-                            LoginScreen(
-                                onLoginSuccess: {},
-                                onSignup: {
-                                    withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                                        showSignup = true
-                                    }
-                                }
-                            )
+                            customerNamePrefill = ""
+                            showCustomerInfoSheet = true
                         }
-                    }
+                    })
+                } else {
+                    // Restaurant Portal Tab (Owners only)
+                    RestaurantPortalView(
+                        onLogin: {
+                            SupabaseManager.shared.loginIntent = .owner
+                            showOwnerLogin = true
+                        },
+                        onSignup: {
+                            SupabaseManager.shared.loginIntent = .owner
+                            showOwnerLogin = true
+                        },
+                        onGoToDashboard: {
+                            onSwitchToOwner()
+                        }
+                    )
                 }
             }
             .id(selectedTab) // Simple transitions
@@ -99,14 +105,10 @@ struct HomeView: View {
                             selectedRestaurant = nil
                         }
                     },
-                    onViewFullMenu: {
-                        // Handle full menu view if needed
-                        print("View full menu")
-                    },
                     onDishClick: { dishId in
                         print("Clicked dish: \(dishId)")
                     },
-                    restaurantProfile: restaurant
+                    restaurant: restaurant
                 )
                 .transition(.move(edge: .trailing))
                 .zIndex(100)
@@ -117,6 +119,87 @@ struct HomeView: View {
                 Color.clear.frame(height: 0) // Spacer
                 BottomTabBar(selectedTab: $selectedTab)
             }
+        }
+        .onReceive(deepLinkHandler.$pendingRestaurantId) { restaurantId in
+            guard let restaurantId = restaurantId else { return }
+            
+            print("🔗 [HomeView] Deep link received for restaurant: \(restaurantId)")
+            
+            // Navigate to restaurant by ID
+            Task {
+                await navigateToRestaurant(restaurantId: restaurantId)
+                
+                // Clear pending navigation
+                await MainActor.run {
+                    deepLinkHandler.clearPendingNavigation()
+                }
+            }
+        }
+        .alert("Error", isPresented: $deepLinkHandler.showError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(deepLinkHandler.errorMessage)
+        }
+        // Order flow modals — use item: binding to guarantee non-nil content (prevents black screen)
+        .sheet(isPresented: $showCustomerInfoSheet, onDismiss: {
+            // fullScreenCover(item:) auto-triggers when pendingConfirmState is set
+        }) {
+            CustomerInfoSheet(
+                prefillName: customerNamePrefill,
+                onConfirm: { name, e164Phone, notes in
+                    pendingConfirmState = OrderConfirmState(
+                        name: name, phone: e164Phone, notes: notes,
+                        restaurantId: CartManager.shared.restaurantId ?? ""
+                    )
+                    showCustomerInfoSheet = false
+                }
+            )
+        }
+        // fullScreenCover(item:) — content guaranteed non-nil, no black screen
+        .fullScreenCover(item: $pendingConfirmState) { state in
+            OrderConfirmationScreen(
+                restaurantId: state.restaurantId,
+                customerName: state.name,
+                customerPhone: state.phone,
+                specialNotes: state.notes,
+                paymentMethod: .cash,
+                onOrderPlaced: { orderId in
+                    pendingOrderId = orderId
+                    pendingConfirmState = nil  // dismisses this cover
+                },
+                onDismiss: {
+                    pendingOrderId = nil
+                    pendingConfirmState = nil
+                }
+            )
+        }
+        .fullScreenCover(item: Binding(
+            get: { pendingOrderId.map { OrderIdWrapper(id: $0) } },
+            set: { if $0 == nil { pendingOrderId = nil } }
+        )) { wrapper in
+            CustomerOrderStatusScreen(orderId: wrapper.id)
+        }
+        .fullScreenCover(isPresented: $showQRScanner) {
+            QRScannerView(
+                onScanSuccess: { scannedURL in
+                    handleScannedQR(url: scannedURL)
+                },
+                onDismiss: {
+                    showQRScanner = false
+                }
+            )
+        }
+        .fullScreenCover(isPresented: $showOwnerLogin) {
+            OwnerLoginScreen(
+                onLogin: {
+                    // RootView will detect auth change and switch flow
+                    showOwnerLogin = false
+                },
+                onBack: {
+                    SupabaseManager.shared.loginIntent = .none
+                    showOwnerLogin = false
+                }
+            )
         }
     }
     
@@ -143,7 +226,9 @@ struct HomeView: View {
                 .frame(width: 340, height: 300)
             
             // Scan QR Button
-            Button(action: {}) {
+            Button(action: {
+                showQRScanner = true
+            }) {
                 HStack(spacing: 12) {
                     Image(systemName: "qrcode.viewfinder")
                         .font(.system(size: 24))
@@ -170,7 +255,9 @@ struct HomeView: View {
             .padding(.horizontal, 20)
             
             // Scan QR Code button
-            Button(action: {}) {
+            Button(action: {
+                showQRScanner = true
+            }) {
                 Text("Scan QR Code")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.white)
@@ -200,7 +287,11 @@ struct HomeView: View {
                 
                 Spacer()
                 
-                Button(action: {}) {
+                Button(action: {
+                    withAnimation {
+                        selectedTab = 1
+                    }
+                }) {
                     Text("See All")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.brandPrimary)
@@ -210,38 +301,35 @@ struct HomeView: View {
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
-                    RestaurantCard(
-                        id: "1",
-                        name: "The Grand Bistro",
-                        image: "https://images.unsplash.com/photo-1744776411221-702f2848b0b2",
-                        rating: 4.8,
-                        cuisine: "Fine Dining",
-                        location: "Downtown",
-                        priceRange: "$$$",
-                        onClick: {}
-                    )
-                    
-                    RestaurantCard(
-                        id: "2",
-                        name: "Bella Italia",
-                        image: "https://images.unsplash.com/photo-1518003184446-383eb111b1e3",
-                        rating: 4.6,
-                        cuisine: "Italian",
-                        location: "Midtown",
-                        priceRange: "$$",
-                        onClick: {}
-                    )
-                    
-                    RestaurantCard(
-                        id: "3",
-                        name: "Sushi Master",
-                        image: "https://images.unsplash.com/photo-1725122194872-ace87e5a1a8d",
-                        rating: 4.9,
-                        cuisine: "Japanese",
-                        location: "West End",
-                        priceRange: "$$",
-                        onClick: {}
-                    )
+                    if restaurants.isEmpty {
+                        RestaurantCard(
+                            id: "placeholder",
+                            name: "No Active Restaurants",
+                            image: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4",
+                            rating: 5.0,
+                            cuisine: "Browse Menu",
+                            location: "Online",
+                            priceRange: "$",
+                            onClick: {}
+                        )
+                    } else {
+                        ForEach(restaurants) { rest in
+                            RestaurantCard(
+                                id: rest.id,
+                                name: rest.name,
+                                image: rest.logo_url ?? "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4",
+                                rating: 4.8,
+                                cuisine: rest.cuisine_type ?? "Fine Dining",
+                                location: rest.city ?? "Downtown",
+                                priceRange: "$$$",
+                                onClick: {
+                                    withAnimation {
+                                        selectedRestaurant = rest
+                                    }
+                                }
+                            )
+                        }
+                    }
                 }
                 .padding(.horizontal, 20)
             }
@@ -304,7 +392,11 @@ struct HomeView: View {
                     .font(.system(size: 14))
                     .foregroundColor(Color(hex: "9CA3AF"))
                 
-                LoginButton()
+                LoginButton(action: {
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                        selectedTab = 3
+                    }
+                })
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 20)
@@ -320,8 +412,113 @@ struct HomeView: View {
         }
         .padding(.vertical, 24)
     }
+    
+    // MARK: - Deep Link Navigation
+    
+    /// Navigate to restaurant menu by ID (from deep link)
+    @MainActor
+    private func navigateToRestaurant(restaurantId: String) async {
+        do {
+            // Fetch restaurant profile using public API
+            let profile = try await SupabaseManager.shared.fetchPublicRestaurant(restaurantId: restaurantId)
+            
+            // Present restaurant details screen
+            withAnimation {
+                selectedRestaurant = profile
+            }
+            
+            print("✅ [HomeView] Navigated to restaurant: \(profile.name)")
+        } catch {
+            print("❌ [HomeView] Failed to load restaurant: \(error.localizedDescription)")
+            
+            // Show error via DeepLinkHandler
+            deepLinkHandler.errorMessage = "Unable to load restaurant. Please try again."
+            deepLinkHandler.showError = true
+        }
+    }
+    
+    /// Handle scanned QR code URL
+    @MainActor
+    private func handleScannedQR(url: String) {
+        print("🔍 [HomeView] Scanned QR code: \(url)")
+        
+        // Dismiss scanner
+        showQRScanner = false
+        
+        // Parse URL
+        guard let qrURL = URL(string: url) else {
+            deepLinkHandler.errorMessage = "Invalid QR code format"
+            deepLinkHandler.showError = true
+            return
+        }
+        
+        // Let DeepLinkHandler process the URL
+        let handled = deepLinkHandler.handleURL(qrURL)
+        
+        if !handled {
+            deepLinkHandler.errorMessage = "This QR code is not a valid restaurant menu link"
+            deepLinkHandler.showError = true
+        }
+    }
+    
+    /// Load dynamic active restaurants from Supabase
+    private func loadHomeData() {
+        isLoading = true
+        Task {
+            do {
+                let items = try await SupabaseManager.shared.fetchRestaurants()
+                await MainActor.run {
+                    self.restaurants = items
+                    withAnimation {
+                        self.isLoading = false
+                    }
+                }
+            } catch {
+                print("❌ Error loading restaurants: \(error)")
+                await MainActor.run {
+                    withAnimation {
+                        self.isLoading = false
+                    }
+                }
+            }
+        }
+    }
 }
 
 #Preview {
     HomeView()
+}
+
+// MARK: - Order Confirm State
+
+struct OrderConfirmState: Identifiable {
+    let id = UUID()  // Identifiable — required for fullScreenCover(item:)
+    let name: String
+    let phone: String
+    let notes: String?
+    let restaurantId: String
+}
+
+/// Lightweight wrapper so a plain String order ID can drive fullScreenCover(item:)
+struct OrderIdWrapper: Identifiable {
+    let id: String  // the actual order UUID string
+}
+
+// MARK: - Profile Full Name Lookup
+
+/// Fetch the user's full_name from the profiles table (never falls back to email)
+func fetchProfileFullName(userId: String) async throws -> String {
+    let token = try await SupabaseManager.shared.getValidAccessTokenOrRefresh()
+    let url = SupabaseConfig.databaseURL.appendingPathComponent("profiles")
+        .appending(queryItems: [
+            URLQueryItem(name: "id", value: "eq.\(userId)"),
+            URLQueryItem(name: "select", value: "full_name")
+        ])
+    var req = URLRequest(url: url)
+    req.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    req.addValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+    let (data, _) = try await URLSession.shared.data(for: req)
+    struct Row: Decodable { let full_name: String? }
+    let rows = try JSONDecoder().decode([Row].self, from: data)
+    return rows.first?.full_name ?? ""
 }

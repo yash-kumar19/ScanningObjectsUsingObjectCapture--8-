@@ -13,83 +13,84 @@ struct MenuDishCard: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            ZStack(alignment: .topTrailing) {
-                // Main Content
-                HStack(alignment: .top, spacing: 16) {
-                    // Image
-                    AsyncImage(url: URL(string: dish.thumbnail_url ?? "")) { phase in
-                        switch phase {
-                        case .empty:
-                            Rectangle()
-                                .fill(Color.white.opacity(0.05))
-                                .overlay(ProgressView())
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        case .failure:
-                            Rectangle()
-                                .fill(Color.white.opacity(0.05))
-                                .overlay(Image(systemName: "photo").foregroundColor(.white.opacity(0.3)))
-                        @unknown default:
-                            EmptyView()
-                        }
+            // Main Content
+            HStack(alignment: .top, spacing: 16) {
+                // Image
+                AsyncImage(url: URL(string: dish.thumbnail_url ?? "")) { phase in
+                    switch phase {
+                    case .empty:
+                        Rectangle()
+                            .fill(Color.white.opacity(0.05))
+                            .overlay(ProgressView())
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    case .failure:
+                        Rectangle()
+                            .fill(Color.white.opacity(0.05))
+                            .overlay(Image(systemName: "photo").foregroundColor(.white.opacity(0.3)))
+                    @unknown default:
+                        EmptyView()
                     }
-                    .frame(width: 80, height: 80)
-                    .cornerRadius(16)
-                    .clipped()
-                    
-                    // Details
-                    VStack(alignment: .leading, spacing: 6) {
+                }
+                .frame(width: 80, height: 80)
+                .clipShape(RoundedRectangle(cornerRadius: 16)) // Enforce clipping shape
+                
+                // Details
+                VStack(alignment: .leading, spacing: 6) {
+                    // Header Row: Title + Delete Button
+                    HStack(alignment: .top, spacing: 8) {
                         Text(dish.name)
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.white)
-                            .padding(.trailing, 60) // Increased space for delete button
-                        
-                        Text(dish.description ?? "")
-                            .font(.system(size: 14))
-                            .foregroundColor(Color.white.opacity(0.6))
                             .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
                         
-                        HStack(spacing: 10) {
-                            Text(dish.category)
+                        Spacer()
+                        
+                        // Delete Button
+                        Button(action: onDelete) {
+                            Image(systemName: "trash")
                                 .font(.system(size: 12))
-                                .foregroundColor(Color.white.opacity(0.7))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(Color.white.opacity(0.05))
-                                .cornerRadius(8)
+                                .foregroundColor(Color(hex: "f87171")) // red-400
+                                .frame(width: 32, height: 32)
+                                .background(Color(hex: "ef4444").opacity(0.1)) // red-500/10
+                                .cornerRadius(10)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(Color(hex: "ef4444").opacity(0.3), lineWidth: 1)
                                 )
-                            
-                            Text(String(format: "$%.2f", dish.price))
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(Color(hex: "2b7fff"))
                         }
-                        .padding(.top, 4)
                     }
+                    
+                    Text(dish.description ?? "")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color.white.opacity(0.6))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    
+                    HStack(spacing: 10) {
+                        Text(dish.category)
+                            .font(.system(size: 12))
+                            .foregroundColor(Color.white.opacity(0.7))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            )
+                        
+                        Text(String(format: "$%.2f", dish.price))
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(Color(hex: "2b7fff"))
+                    }
+                    .padding(.top, 4)
                 }
-                .padding(16)
-                
-                // Delete Button
-                Button(action: onDelete) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 12))
-                        .foregroundColor(Color(hex: "f87171")) // red-400
-                        .frame(width: 32, height: 32)
-                        .background(Color(hex: "ef4444").opacity(0.1)) // red-500/10
-                        .cornerRadius(10)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color(hex: "ef4444").opacity(0.3), lineWidth: 1)
-                        )
-                }
-                .padding(.top, 6) // Moved up more
-                .padding(.trailing, 16)
             }
+            .padding(16)
             
             // Divider
             Rectangle()
@@ -172,13 +173,30 @@ struct OwnerMenuScreen: View {
     @State private var localModelURL: URL?
     @State private var downloadError: String?
     
+    // Edit & Delete State
+    @State private var editingDish: Dish? = nil
+    @State private var dishToDelete: Dish? = nil
+    @State private var showDeleteConfirmation = false
+    @State private var isDeleting = false
+    @State private var errorMessage: String?
+    @State private var showError = false
+    
+    // QR Menu State
+    @State private var showQRMenu = false
+    @State private var showQRTooltip = false
+    @AppStorage("hasSeenQRTooltip") private var hasSeenQRTooltip = false
+    
     // Custom formatted dishes for view
     var filteredDishes: [Dish] {
-        if searchQuery.isEmpty {
-            return dishes
-        } else {
-            return dishes.filter { $0.name.localizedCaseInsensitiveContains(searchQuery) }
+        let query = searchQuery
+        let all = dishes
+        if query.isEmpty {
+            return all
         }
+        let predicate: (Dish) -> Bool = { dish in
+            dish.name.localizedCaseInsensitiveContains(query)
+        }
+        return all.filter(predicate)
     }
     
     var body: some View {
@@ -187,16 +205,60 @@ struct OwnerMenuScreen: View {
             Theme.background.ignoresSafeArea()
             
             // 3. Content
-            ScrollView {
+            ScrollView(showsIndicators: false) {
                 VStack(spacing: 24) {
-                    // Header
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("3D Menu")
-                            .font(.system(size: 34, weight: .bold))
-                            .foregroundColor(.white)
-                        Text("Manage your dishes and 3D models")
-                            .font(.body)
-                            .foregroundColor(Color.white.opacity(0.6))
+                    // Header with QR Icon
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("3D Menu")
+                                .font(.system(size: 34, weight: .bold))
+                                .foregroundColor(.white)
+                            Text("Manage your dishes and 3D models")
+                                .font(.body)
+                                .foregroundColor(Color.white.opacity(0.6))
+                        }
+                        
+                        Spacer()
+                        
+                        // QR Icon Button
+                        ZStack(alignment: .topTrailing) {
+                            Button(action: { showQRMenu = true }) {
+                                Image(systemName: "qrcode")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 48, height: 48)
+                                    .background(Color(hex: "2b7fff").opacity(0.2))
+                                    .cornerRadius(12)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color(hex: "2b7fff").opacity(0.3), lineWidth: 1)
+                                    )
+                            }
+                            
+                            // One-time tooltip
+                            if showQRTooltip {
+                                VStack(spacing: 4) {
+                                    Text("Share your menu with customers via QR")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .fill(Color(hex: "2b7fff"))
+                                        )
+                                        .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
+                                    
+                                    // Arrow pointing down
+                                    Image(systemName: "arrowtriangle.down.fill")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(Color(hex: "2b7fff"))
+                                        .offset(y: -8)
+                                }
+                                .offset(x: -80, y: -10)
+                                .transition(.opacity)
+                            }
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 24)
@@ -257,8 +319,12 @@ struct OwnerMenuScreen: View {
                             ForEach(filteredDishes) { dish in
                                 MenuDishCard(
                                     dish: dish,
-                                    onEdit: { /* Edit dish */ },
-                                    onDelete: { /* Delete dish */ },
+                                    onEdit: { 
+                                        editingDish = dish 
+                                    },
+                                    onDelete: { 
+                                        requestDelete(dish) 
+                                    },
                                     onPreview: {
                                         print("🔍 onPreview called for dish: \(dish.name)")
                                         print("🔍 Model URL value: \(dish.model_url ?? "nil")")
@@ -315,7 +381,17 @@ struct OwnerMenuScreen: View {
                     showAddDish = false
                     Task { await loadDishes() }
                 },
-                dishId: nil
+                existingDish: nil
+            )
+        }
+        .fullScreenCover(item: $editingDish) { dish in
+            AddEditDishScreen(
+                onBack: { editingDish = nil },
+                onSave: {
+                    editingDish = nil
+                    Task { await loadDishes() }
+                },
+                existingDish: dish
             )
         }
         .fullScreenCover(isPresented: $showModelPreview) {
@@ -330,16 +406,6 @@ struct OwnerMenuScreen: View {
                             showModelPreview = false
                         })
                         .ignoresSafeArea()
-                        
-                        // Close Button
-                        Button(action: { showModelPreview = false }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 30))
-                                .foregroundColor(.white)
-                                .background(Color.black.opacity(0.4))
-                                .clipShape(Circle())
-                        }
-                        .padding(24)
                     }
                 } else if downloader.isDownloading {
                     // Show download progress
@@ -430,15 +496,104 @@ struct OwnerMenuScreen: View {
         }
         .task {
             await loadDishes()
+            
+            // Show QR tooltip on first visit
+            if !hasSeenQRTooltip {
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s delay
+                withAnimation {
+                    showQRTooltip = true
+                }
+                try? await Task.sleep(nanoseconds: 3_000_000_000) // 3s duration
+                withAnimation {
+                    showQRTooltip = false
+                }
+                hasSeenQRTooltip = true
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .supabaseDataDidUpdate)) { _ in
             Task { await loadDishes() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ownerShouldShowAddDishSheet)) { _ in
+            showAddDish = true
         }
         .alert("No 3D Model", isPresented: $showNoModelAlert) {
             Button("OK", role: .cancel) { }
         } message: {
             Text("This dish doesn't have a 3D model yet. Please create or upload one to preview.")
         }
+        .alert("Delete Dish", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                Task { await performDelete() }
+            }
+        } message: {
+            if let dish = dishToDelete {
+                Text("Delete '\(dish.name)'? This will hide it from customers, but data will be preserved.")
+            }
+        }
+        .alert("Error", isPresented: $showError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(errorMessage ?? "An unknown error occurred")
+        }
+        .sheet(isPresented: $showQRMenu) {
+            if let userId = SupabaseManager.shared.currentUser?.id {
+                QRMenuView(
+                    restaurantId: userId,
+                    restaurantName: "My Restaurant", // TODO: Fetch from profile if available
+                    menuURL: AppConfig.menuURL(for: userId),
+                    onDismiss: { showQRMenu = false }
+                )
+            } else {
+                // Fallback if no user
+                VStack(spacing: 16) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.largeTitle)
+                        .foregroundColor(.yellow)
+                    Text("Please log in to generate your QR code")
+                        .multilineTextAlignment(.center)
+                    Button("Close") { showQRMenu = false }
+                        .padding()
+                }
+                .presentationDetents([.medium])
+            }
+        }
+    }
+    
+    // MARK: - Helper Functions
+    
+    /// Centralized delete request - prevents double-trigger from swipe + button
+    func requestDelete(_ dish: Dish) {
+        // Prevent delete during upload
+        guard dish.generation_status != "uploading" else {
+            errorMessage = "Cannot delete while 3D model is uploading. Please wait for upload to complete."
+            showError = true
+            return
+        }
+        
+        dishToDelete = dish
+        showDeleteConfirmation = true
+    }
+    
+    /// Perform soft-delete on confirmed dish
+    func performDelete() async {
+        guard let dish = dishToDelete else { return }
+        
+        isDeleting = true
+        
+        do {
+            try await SupabaseManager.shared.softDeleteDish(id: dish.id)
+            await loadDishes() // Refresh list
+            print("✅ Dish '\(dish.name)' soft-deleted successfully")
+        } catch {
+            await MainActor.run {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+        }
+        
+        isDeleting = false
+        dishToDelete = nil
     }
     
     func loadDishes() async {
@@ -451,4 +606,9 @@ struct OwnerMenuScreen: View {
         isLoading = false
     }
 }
+
+extension Notification.Name {
+    static let ownerShouldShowAddDishSheet = Notification.Name("ownerShouldShowAddDishSheet")
+}
+
 

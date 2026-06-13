@@ -53,7 +53,7 @@ struct OwnerReservationsScreen: View {
             Theme.background.ignoresSafeArea()
             
             // 3. Content
-            ScrollView {
+            ScrollView(showsIndicators: false) {
                 VStack(spacing: 24) {
                     // Header
                     VStack(alignment: .leading, spacing: 8) {

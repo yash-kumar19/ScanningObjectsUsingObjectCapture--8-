@@ -18,16 +18,6 @@ struct ModelPreviewSheet: View {
                 ZStack(alignment: .topTrailing) {
                     ModelView(modelFile: localURL, endCaptureCallback: onDismiss)
                         .ignoresSafeArea()
-                    
-                    // Close Button
-                    Button(action: onDismiss) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 30))
-                            .foregroundColor(.white)
-                            .background(Color.black.opacity(0.4))
-                            .clipShape(Circle())
-                    }
-                    .padding(24)
                 }
             } else if downloader.isDownloading {
                 // Show download progress

@@ -1,11 +1,11 @@
 import SwiftUI
 
 struct SearchScreen: View {
-    var onRestaurantClick: (Profile) -> Void // Changed to accept Profile
+    var onRestaurantClick: (Restaurant) -> Void // Changed to accept Restaurant
     
     @State private var searchQuery: String = ""
     @State private var selectedCuisine: String = "all"
-    @State private var restaurants: [Profile] = []
+    @State private var restaurants: [Restaurant] = []
     @State private var isLoading = false
     
     let cuisines = [
@@ -15,14 +15,22 @@ struct SearchScreen: View {
         (id: "healthy", label: "Healthy", icon: "leaf")
     ]
     
-    var filteredRestaurants: [Profile] {
-        if searchQuery.isEmpty {
-            return restaurants
-        } else {
-            return restaurants.filter {
-                ($0.restaurant_name ?? "").localizedCaseInsensitiveContains(searchQuery)
+    var filteredRestaurants: [Restaurant] {
+        var result = restaurants
+        
+        // Filter by Cuisine
+        if selectedCuisine != "all" {
+            result = result.filter { ($0.cuisine_type ?? "").lowercased() == selectedCuisine.lowercased() }
+        }
+        
+        // Filter by Search Query
+        if !searchQuery.isEmpty {
+            result = result.filter {
+                ($0.name).localizedCaseInsensitiveContains(searchQuery)
             }
         }
+        
+        return result
     }
     
     var body: some View {
@@ -39,7 +47,7 @@ struct SearchScreen: View {
                         
                         Text("Find your perfect dining experience")
                             .font(.system(size: 15))
-                            .foregroundColor(Color.fromHex("94A3B8"))
+                            .foregroundColor(Color(hex: "94A3B8"))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 20)
@@ -76,22 +84,20 @@ struct SearchScreen: View {
                              .foregroundColor(.gray)
                              .padding(40)
                     } else {
-                        // Restaurant List
-                        VStack(spacing: 16) {
+                         // Restaurant List
+                        LazyVStack(spacing: 16) {
                             ForEach(filteredRestaurants) { restaurant in
-                                Button(action: {
-                                    onRestaurantClick(restaurant)
-                                }) {
-                                    DiscoverRestaurantCard(
-                                        name: restaurant.restaurant_name ?? "Unnamed",
-                                        logoURL: restaurant.logo_url ?? restaurant.avatar_url,
-                                        rating: 4.8, // Mock
-                                        cuisine: restaurant.cuisine ?? "Fine Dining",
-                                        location: restaurant.city ?? "Downtown",
-                                        priceRange: "$$$" // Mock
-                                    )
-                                }
-                                .buttonStyle(DiscoverScaleButtonStyle())
+                                DiscoverRestaurantCard(
+                                    name: restaurant.name,
+                                    logoURL: restaurant.logo_url,
+                                    rating: 4.8, // Mock
+                                    cuisine: restaurant.cuisine_type ?? "Fine Dining",
+                                    location: restaurant.city ?? "Downtown",
+                                    priceRange: "$$$", // Mock
+                                    onViewMenu: {
+                                        onRestaurantClick(restaurant)
+                                    }
+                                )
                             }
                         }
                         .padding(.horizontal, 20)
@@ -131,122 +137,128 @@ struct DiscoverRestaurantCard: View {
     let cuisine: String
     let location: String
     let priceRange: String
+    let onViewMenu: () -> Void
     
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Image
-            ZStack(alignment: .topTrailing) {
-                // Restaurant image with fallback gradient
-                AsyncImage(url: URL(string: logoURL ?? "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop")) { phase in
-                    switch phase {
-                    case .empty:
-                        // Loading placeholder
-                        Rectangle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.fromHex("1E293B"),
-                                        Color.fromHex("0F172A")
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
+        Button(action: onViewMenu) {
+            VStack(alignment: .leading, spacing: 0) {
+                // Image
+                ZStack(alignment: .topTrailing) {
+                    // Restaurant image with fallback gradient
+                    AsyncImage(url: URL(string: logoURL ?? "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop")) { phase in
+                        switch phase {
+                        case .empty:
+                            // Loading placeholder
+                            Rectangle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color(hex: "1E293B"),
+                                            Color(hex: "0F172A")
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
                                 )
-                            )
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(height: 180)
-                            .clipped()
-                    case .failure:
-                        // Fallback gradient on error
-                        Rectangle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.fromHex("1E293B"),
-                                        Color.fromHex("0F172A")
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(height: 180)
+                                .clipped()
+                        case .failure:
+                            // Fallback gradient on error
+                            Rectangle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color(hex: "1E293B"),
+                                            Color(hex: "0F172A")
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
                                 )
-                            )
-                    @unknown default:
-                        EmptyView()
+                        @unknown default:
+                            EmptyView()
+                        }
                     }
-                }
-                .frame(height: 180)
-                
-                // Overlays
-                HStack {
-                    // Price Range Badge
-                    Text(priceRange)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white)
+                    .frame(height: 180)
+                    
+                    // Overlays
+                    HStack {
+                        // Price Range Badge
+                        Text(priceRange)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.black.opacity(0.6))
+                            .cornerRadius(8)
+                            .padding(12)
+                        
+                        Spacer()
+                        
+                        // Rating Badge
+                        HStack(spacing: 4) {
+                            Image(systemName: "star.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(Color(hex: "FCD34D"))
+                            
+                            Text(String(format: "%.1f", rating))
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(Color.black.opacity(0.6))
                         .cornerRadius(8)
                         .padding(12)
-                    
-                    Spacer()
-                    
-                    // Rating Badge
-                    HStack(spacing: 4) {
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 12))
-                            .foregroundColor(Color.fromHex("FCD34D"))
-                        
-                        Text(String(format: "%.1f", rating))
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.white)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.black.opacity(0.6))
-                    .cornerRadius(8)
-                    .padding(12)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            }
-            .cornerRadius(16)
-            
-            // Info Section
-            VStack(alignment: .leading, spacing: 8) {
-                Text(name)
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.white)
+                .cornerRadius(16)
                 
-                Text(cuisine)
-                    .font(.system(size: 14))
-                    .foregroundColor(Color.fromHex("94A3B8"))
-                
-                HStack(spacing: 4) {
-                    Image(systemName: "mappin")
-                        .font(.system(size: 13))
-                        .foregroundColor(Color.fromHex("64748B"))
+                // Info Section
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(name)
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(.white)
                     
-                    Text(location)
-                        .font(.system(size: 13))
-                        .foregroundColor(Color.fromHex("64748B"))
+                    Text(cuisine)
+                        .font(.system(size: 14))
+                        .foregroundColor(Color(hex: "94A3B8"))
+                    
+                    HStack(spacing: 4) {
+                        Image(systemName: "mappin")
+                            .font(.system(size: 13))
+                            .foregroundColor(Color(hex: "64748B"))
+                        
+                        Text(location)
+                            .font(.system(size: 13))
+                            .foregroundColor(Color(hex: "64748B"))
+                    }
+                    
+                    // View Menu Button - Flattened, purely visual
+                    DiscoverViewMenuButton()
+                        .allowsHitTesting(false)
+                        .padding(.top, 4)
                 }
-                
-                // View Menu Button
-                DiscoverViewMenuButton()
-                    .padding(.top, 4)
+                .padding(16)
+                .background(Color(hex: "1E293B"))
+                .cornerRadius(16)
             }
-            .padding(16)
-            .background(Color.fromHex("1E293B"))
+            .background(Color(hex: "1E293B"))
             .cornerRadius(16)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color(hex: "334155"), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
         }
-        .background(Color.fromHex("1E293B"))
-        .cornerRadius(16)
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.fromHex("334155"), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
+        .contentShape(Rectangle())
+        .buttonStyle(.plain)
     }
 }
 
@@ -260,15 +272,15 @@ struct DiscoverViewMenuButton: View {
             .background(
                 LinearGradient(
                     colors: [
-                        Color.fromHex("3B82F6"),
-                        Color.fromHex("2563EB")
+                        Color(hex: "3B82F6"),
+                        Color(hex: "2563EB")
                     ],
                     startPoint: .leading,
                     endPoint: .trailing
                 )
             )
             .cornerRadius(12)
-            .shadow(color: Color.fromHex("3B82F6").opacity(0.4), radius: 8, x: 0, y: 4)
+            .shadow(color: Color(hex: "3B82F6").opacity(0.4), radius: 8, x: 0, y: 4)
     }
 }
 

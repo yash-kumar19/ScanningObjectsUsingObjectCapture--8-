@@ -57,9 +57,9 @@ struct Model3DView: View {
                         .font(.system(size: 20))
                         .foregroundColor(.white)
                         .frame(width: 50, height: 50)
-                        .background(Color.fromHex("3B82F6").opacity(0.3))
+                        .background(Color(hex: "3B82F6").opacity(0.3))
                         .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.fromHex("3B82F6"), lineWidth: 1))
+                        .overlay(Circle().stroke(Color(hex: "3B82F6"), lineWidth: 1))
                 }
                 
                 Button(action: {}) {
@@ -67,9 +67,9 @@ struct Model3DView: View {
                         .font(.system(size: 20))
                         .foregroundColor(.white)
                         .frame(width: 50, height: 50)
-                        .background(Color.fromHex("3B82F6").opacity(0.3))
+                        .background(Color(hex: "3B82F6").opacity(0.3))
                         .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.fromHex("3B82F6"), lineWidth: 1))
+                        .overlay(Circle().stroke(Color(hex: "3B82F6"), lineWidth: 1))
                 }
             }
             .offset(y: 110)

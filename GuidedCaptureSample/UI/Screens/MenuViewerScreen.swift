@@ -12,9 +12,9 @@ struct MenuViewerScreen: View {
     
     // Data
     let dishes = [
-        Restaurant(id: "1", name: "Grilled Wagyu Steak", image: "", rating: 0, category: "Mains", dishes: 0),
-        Restaurant(id: "2", name: "Lobster Thermidor", image: "", rating: 0, category: "Seafood", dishes: 0),
-        Restaurant(id: "3", name: "Truffle Risotto", image: "", rating: 0, category: "Mains", dishes: 0)
+        LocalMenuDish(id: "1", name: "Grilled Wagyu Steak", image: "", rating: 0, category: "Mains", dishes: 0),
+        LocalMenuDish(id: "2", name: "Lobster Thermidor", image: "", rating: 0, category: "Seafood", dishes: 0),
+        LocalMenuDish(id: "3", name: "Truffle Risotto", image: "", rating: 0, category: "Mains", dishes: 0)
     ]
     
     let dishDetails: [String: (description: String, price: String, ingredients: [String])] = [
@@ -23,7 +23,7 @@ struct MenuViewerScreen: View {
         "3": ("Creamy arborio rice with black truffle shavings and aged parmesan", "$45.00", ["Arborio Rice", "Black Truffle", "Parmesan", "White Wine"])
     ]
     
-    var selectedDish: Restaurant {
+    var selectedDish: LocalMenuDish {
         dishes[selectedDishIndex]
     }
     

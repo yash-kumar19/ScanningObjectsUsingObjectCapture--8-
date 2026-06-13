@@ -78,15 +78,15 @@ struct RestaurantCard: View {
                     
                     Text(cuisine)
                         .font(.subheadline)
-                        .foregroundColor(Color.fromHex("3B82F6"))
+                        .foregroundColor(Color(hex: "3B82F6"))
                     
                     HStack(spacing: 4) {
                         Image(systemName: "mappin.circle.fill")
                             .font(.caption)
-                            .foregroundColor(Color.fromHex("9CA3AF"))
+                            .foregroundColor(Color(hex: "9CA3AF"))
                         Text(location)
                             .font(.caption)
-                            .foregroundColor(Color.fromHex("9CA3AF"))
+                            .foregroundColor(Color(hex: "9CA3AF"))
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

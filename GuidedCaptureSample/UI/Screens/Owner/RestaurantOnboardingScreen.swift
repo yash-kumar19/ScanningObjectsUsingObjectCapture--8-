@@ -319,23 +319,17 @@ struct RestaurantOnboardingScreen: View {
                     logoURL = try await SupabaseManager.shared.uploadLogo(data: data, name: filename)
                 }
                 
-                // Ensure profile exists (auto-create if missing)
-                guard let userId = SupabaseManager.shared.currentUser?.id else { return }
-                _ = try await SupabaseManager.shared.fetchProfile(userId: userId)
-                
-                // Update Profile
-                try await SupabaseManager.shared.updateProfile(
-                    role: "owner",
+                // Complete Owner Onboarding (atomically updates both restaurants and profiles table)
+                try await SupabaseManager.shared.completeOwnerOnboarding(
                     restaurantName: restaurantName,
-                    logoURL: logoURL,
                     cuisine: cuisine,
                     address: address,
                     phone: phone,
                     city: city,
                     pincode: pincode,
+                    logoURL: logoURL,
                     fssai: fssai,
-                    openingHours: nil,
-                    bio: nil
+                    ownerName: ownerName
                 )
                 
                 await MainActor.run {

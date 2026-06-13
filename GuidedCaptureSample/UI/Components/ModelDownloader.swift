@@ -38,9 +38,17 @@ class ModelDownloader: ObservableObject {
     /// - Parameter remoteURL: The HTTPS URL of the model in Supabase storage
     /// - Returns: Local file URL of the cached model
     func downloadModel(from remoteURL: URL) async throws -> URL {
+        print("🔍 [ModelDownloader] Starting download process")
+        print("🔍 [ModelDownloader] Remote URL: \(remoteURL.absoluteString)")
+        print("🔍 [ModelDownloader] URL scheme: \(remoteURL.scheme ?? "nil")")
+        print("🔍 [ModelDownloader] URL host: \(remoteURL.host ?? "nil")")
+        print("🔍 [ModelDownloader] URL path: \(remoteURL.path)")
+        
         // Generate cache filename from remote URL
         let filename = cacheFilename(for: remoteURL)
         let localURL = cacheDirectory.appendingPathComponent(filename)
+        print("🔍 [ModelDownloader] Cache filename: \(filename)")
+        print("🔍 [ModelDownloader] Local cache path: \(localURL.path)")
         
         // Check if already cached
         if FileManager.default.fileExists(atPath: localURL.path) {
@@ -57,11 +65,23 @@ class ModelDownloader: ObservableObject {
         }
         
         do {
+            print("🔍 [ModelDownloader] Starting URLSession download...")
+            
             // Download the file using custom session with extended timeouts
             let (tempURL, response) = try await session.download(from: remoteURL)
             
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode) else {
+            print("🔍 [ModelDownloader] Download completed, checking response...")
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("❌ [ModelDownloader] Response is not HTTPURLResponse")
+                throw ModelDownloadError.invalidResponse
+            }
+            
+            print("🔍 [ModelDownloader] HTTP Status Code: \(httpResponse.statusCode)")
+            print("🔍 [ModelDownloader] Response headers: \(httpResponse.allHeaderFields)")
+            
+            guard (200...299).contains(httpResponse.statusCode) else {
+                print("❌ [ModelDownloader] Invalid status code: \(httpResponse.statusCode)")
                 throw ModelDownloadError.invalidResponse
             }
             
@@ -70,7 +90,13 @@ class ModelDownloader: ObservableObject {
             let fileSize = attributes[.size] as? Int64 ?? 0
             print("📦 Downloaded USDZ size: \(fileSize) bytes")
             
+            if fileSize == 0 {
+                print("❌ [ModelDownloader] Downloaded file is empty!")
+                throw ModelDownloadError.fileNotFound
+            }
+            
             // Move to cache directory
+            print("🔍 [ModelDownloader] Moving file to cache directory...")
             try FileManager.default.moveItem(at: tempURL, to: localURL)
             
             await MainActor.run {
@@ -82,6 +108,15 @@ class ModelDownloader: ObservableObject {
             return localURL
             
         } catch {
+            print("❌ [ModelDownloader] Download failed with error: \(error)")
+            print("❌ [ModelDownloader] Error type: \(type(of: error))")
+            print("❌ [ModelDownloader] Error description: \(error.localizedDescription)")
+            
+            if let urlError = error as? URLError {
+                print("❌ [ModelDownloader] URLError code: \(urlError.code.rawValue)")
+                print("❌ [ModelDownloader] URLError description: \(urlError.localizedDescription)")
+            }
+            
             await MainActor.run {
                 isDownloading = false
                 self.error = error.localizedDescription

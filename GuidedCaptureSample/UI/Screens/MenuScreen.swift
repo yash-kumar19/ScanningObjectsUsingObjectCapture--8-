@@ -25,15 +25,15 @@ struct MenuScreen: View {
     ]
     
     let dishes = [
-        Restaurant(id: "1", name: "Grilled Wagyu Steak", image: "https://images.unsplash.com/photo-1718939043329-b956bee61dbb", rating: 0, category: "Mains", dishes: 0), // Reusing Restaurant struct for simplicity or create new Dish struct
-        Restaurant(id: "2", name: "Lobster Thermidor", image: "https://images.unsplash.com/photo-1580959375944-abd7e991f971", rating: 0, category: "Seafood", dishes: 0),
-        Restaurant(id: "3", name: "Truffle Risotto", image: "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9", rating: 0, category: "Mains", dishes: 0),
-        Restaurant(id: "4", name: "Chocolate Lava Cake", image: "https://images.unsplash.com/photo-1632996988763-7357605b6e6a", rating: 0, category: "Desserts", dishes: 0),
-        Restaurant(id: "5", name: "Pan-Seared Salmon", image: "https://images.unsplash.com/photo-1580959375944-abd7e991f971", rating: 0, category: "Seafood", dishes: 0),
-        Restaurant(id: "6", name: "Caesar Salad", image: "https://images.unsplash.com/photo-1718939043329-b956bee61dbb", rating: 0, category: "Appetizers", dishes: 0)
+        LocalMenuDish(id: "1", name: "Grilled Wagyu Steak", image: "https://images.unsplash.com/photo-1718939043329-b956bee61dbb", rating: 0, category: "Mains", dishes: 0),
+        LocalMenuDish(id: "2", name: "Lobster Thermidor", image: "https://images.unsplash.com/photo-1580959375944-abd7e991f971", rating: 0, category: "Seafood", dishes: 0),
+        LocalMenuDish(id: "3", name: "Truffle Risotto", image: "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9", rating: 0, category: "Mains", dishes: 0),
+        LocalMenuDish(id: "4", name: "Chocolate Lava Cake", image: "https://images.unsplash.com/photo-1632996988763-7357605b6e6a", rating: 0, category: "Desserts", dishes: 0),
+        LocalMenuDish(id: "5", name: "Pan-Seared Salmon", image: "https://images.unsplash.com/photo-1580959375944-abd7e991f971", rating: 0, category: "Seafood", dishes: 0),
+        LocalMenuDish(id: "6", name: "Caesar Salad", image: "https://images.unsplash.com/photo-1718939043329-b956bee61dbb", rating: 0, category: "Appetizers", dishes: 0)
     ]
     
-    // Additional data not in Restaurant struct
+    // Additional data not in LocalMenuDish struct
     let dishDetails: [String: (description: String, price: Double)] = [
         "1": ("Premium A5 Wagyu beef with truffle butter and seasonal vegetables", 85.00),
         "2": ("Fresh Atlantic lobster in creamy cognac sauce with parmesan crust", 65.00),
@@ -43,7 +43,7 @@ struct MenuScreen: View {
         "6": ("Classic Caesar with romaine, parmesan, croutons, and anchovy dressing", 16.00)
     ]
     
-    var filteredDishes: [Restaurant] {
+    var filteredDishes: [LocalMenuDish] {
         if selectedCategory == "all" {
             return dishes
         }

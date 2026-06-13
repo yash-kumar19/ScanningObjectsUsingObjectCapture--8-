@@ -1,7 +1,16 @@
 import SwiftUI
 
+class SettingsActionHandler: ObservableObject {
+    var saveAction: (() async -> Bool)?
+    var discardAction: (() -> Void)?
+}
+
 struct OwnerTabView: View {
     @State private var selectedTab = 0
+    @State private var settingsHasChanges = false
+    @State private var showUnsavedChangesAlert = false
+    @State private var pendingTab = 0
+    @StateObject private var settingsActionHandler = SettingsActionHandler()
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -11,17 +20,25 @@ struct OwnerTabView: View {
             Group {
                 switch selectedTab {
                 case 0:
-                    OwnerDashboardScreen()
+                    OwnerDashboardScreen(onTabSelect: { tabIndex in
+                        withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                            selectedTab = tabIndex
+                        }
+                    })
                 case 1:
                     OwnerMenuScreen()
                 case 2:
                     OwnerGeneratorScreen()
                 case 3:
-                    OwnerReservationsScreen()
+                    OwnerOrdersScreen()
                 case 4:
-                    OwnerSettingsScreen(onLogout: {
-                        SupabaseManager.shared.logout()
-                    })
+                    OwnerSettingsScreen(
+                        onLogout: {
+                            SupabaseManager.shared.logout()
+                        },
+                        hasUnsavedChangesBinding: $settingsHasChanges,
+                        actionHandler: settingsActionHandler
+                    )
                 default:
                     EmptyView()
                 }
@@ -35,14 +52,47 @@ struct OwnerTabView: View {
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: selectedTab)
             
             // Custom Bottom Tab Bar for Owner
-            OwnerBottomTabBar(selectedTab: $selectedTab)
+            OwnerBottomTabBar(
+                selectedTab: $selectedTab,
+                settingsHasChanges: $settingsHasChanges,
+                showUnsavedChangesAlert: $showUnsavedChangesAlert,
+                pendingTab: $pendingTab
+            )
         }
         .ignoresSafeArea(.keyboard)
+        .alert("Unsaved Changes", isPresented: $showUnsavedChangesAlert) {
+            Button("Save Changes") {
+                Task {
+                    if let handler = settingsActionHandler.saveAction {
+                        let success = await handler()
+                        if success {
+                            settingsHasChanges = false
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                                selectedTab = pendingTab
+                            }
+                        }
+                    }
+                }
+            }
+            Button("Discard Changes", role: .destructive) {
+                settingsActionHandler.discardAction?()
+                settingsHasChanges = false
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                    selectedTab = pendingTab
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You have unsaved changes in settings. Would you like to save them before leaving?")
+        }
     }
 }
 
 struct OwnerBottomTabBar: View {
     @Binding var selectedTab: Int
+    @Binding var settingsHasChanges: Bool
+    @Binding var showUnsavedChangesAlert: Bool
+    @Binding var pendingTab: Int
     @Namespace private var animation
     
     var body: some View {
@@ -52,6 +102,9 @@ struct OwnerBottomTabBar: View {
                 title: "Dashboard",
                 index: 0,
                 selectedTab: $selectedTab,
+                settingsHasChanges: $settingsHasChanges,
+                showUnsavedChangesAlert: $showUnsavedChangesAlert,
+                pendingTab: $pendingTab,
                 animation: animation
             )
             
@@ -60,6 +113,9 @@ struct OwnerBottomTabBar: View {
                 title: "Menu",
                 index: 1,
                 selectedTab: $selectedTab,
+                settingsHasChanges: $settingsHasChanges,
+                showUnsavedChangesAlert: $showUnsavedChangesAlert,
+                pendingTab: $pendingTab,
                 animation: animation
             )
             
@@ -68,14 +124,20 @@ struct OwnerBottomTabBar: View {
                 title: "Generator",
                 index: 2,
                 selectedTab: $selectedTab,
+                settingsHasChanges: $settingsHasChanges,
+                showUnsavedChangesAlert: $showUnsavedChangesAlert,
+                pendingTab: $pendingTab,
                 animation: animation
             )
             
             OwnerTabBarItem(
-                icon: "calendar",
-                title: "Bookings",
+                icon: "tray.fill",
+                title: "Orders",
                 index: 3,
                 selectedTab: $selectedTab,
+                settingsHasChanges: $settingsHasChanges,
+                showUnsavedChangesAlert: $showUnsavedChangesAlert,
+                pendingTab: $pendingTab,
                 animation: animation
             )
             
@@ -84,6 +146,9 @@ struct OwnerBottomTabBar: View {
                 title: "Settings",
                 index: 4,
                 selectedTab: $selectedTab,
+                settingsHasChanges: $settingsHasChanges,
+                showUnsavedChangesAlert: $showUnsavedChangesAlert,
+                pendingTab: $pendingTab,
                 animation: animation
             )
         }
@@ -119,12 +184,20 @@ struct OwnerTabBarItem: View {
     let title: String
     let index: Int
     @Binding var selectedTab: Int
+    @Binding var settingsHasChanges: Bool
+    @Binding var showUnsavedChangesAlert: Bool
+    @Binding var pendingTab: Int
     let animation: Namespace.ID
     
     var body: some View {
         Button {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                selectedTab = index
+            if selectedTab == 4 && index != 4 && settingsHasChanges {
+                pendingTab = index
+                showUnsavedChangesAlert = true
+            } else {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                    selectedTab = index
+                }
             }
         } label: {
             ZStack {

@@ -82,7 +82,7 @@ struct GeneratedModelsScreen: View {
                 .padding(.top, 24)
                 
                 // Models List
-                ScrollView {
+                ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
                         ForEach(models) { model in
                             ModelCard(model: model, onPreview: onPreview, onAddToMenu: onAddToMenu)
