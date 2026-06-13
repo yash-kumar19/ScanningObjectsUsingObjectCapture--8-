@@ -1,0 +1,19 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["B8QR5P43QM.com.example.apple-samplecode.guided-capture-sample"],
+        "components": [
+          {
+            "/": "/menu/*",
+            "comment": "Open restaurant menu links in app"
+          },
+          {
+            "/": "/restaurants/*",
+            "comment": "Open restaurant links in app"
+          }
+        ]
+      }
+    ]
+  }
+}

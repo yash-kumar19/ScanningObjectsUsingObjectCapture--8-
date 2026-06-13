@@ -30,6 +30,36 @@ struct Order: Decodable, Identifiable {
         "#\(id.prefix(6).uppercased())"
     }
     
+    // Local memberwise init — used after a successful RPC call so we never
+    // need a DB SELECT (customers have no SELECT RLS policy on orders table).
+    init(
+        id: String,
+        restaurantId: String,
+        status: OrderStatus,
+        paymentMethod: PaymentMethod,
+        subtotal: Double,
+        tax: Double,
+        total: Double,
+        specialNotes: String?,
+        customerName: String?,
+        customerPhone: String?,
+        items: [OrderItem]? = nil
+    ) {
+        self.id            = id
+        self.created_at    = ISO8601DateFormatter().string(from: Date())
+        self.customer_id   = ""
+        self.restaurant_id = restaurantId
+        self.restaurant_name = nil
+        self.status        = status
+        self.payment_method = paymentMethod
+        self.subtotal      = subtotal
+        self.tax           = tax
+        self.total         = total
+        self.special_notes = specialNotes
+        self.customer_name = customerName
+        self.customer_phone = customerPhone
+        self.items         = items
+    }    
     enum CodingKeys: String, CodingKey {
         case id
         case created_at

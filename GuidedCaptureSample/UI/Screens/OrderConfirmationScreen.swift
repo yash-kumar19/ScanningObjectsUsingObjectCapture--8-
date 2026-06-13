@@ -8,7 +8,7 @@ import SwiftUI
 struct OrderConfirmationScreen: View {
     @Environment(\.presentationMode) var presentationMode
     @ObservedObject var cartManager = CartManager.shared
-    
+
     let restaurantId: String
     let customerName: String
     let customerPhone: String        // Already in E.164 format
@@ -16,26 +16,29 @@ struct OrderConfirmationScreen: View {
     let paymentMethod: PaymentMethod
     var onOrderPlaced: (String) -> Void   // Callback with order ID
     var onDismiss: () -> Void             // Called when user taps "Back to Menu"
-    
+
     // UI State
     @State private var isPlacingOrder = false
     @State private var placedOrder: Order? = nil
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var showEditSheet = false
-    
+
+    // MARK: - Body
+
     var body: some View {
-        ZStack {
-            Theme.background.ignoresSafeArea()
-            
+        // Group + ignoresSafeArea fixes the gap that fullScreenCover's hidden
+        // navigation controller adds to ScrollView content insets.
+        Group {
             if let order = placedOrder {
-                // ── SUCCESS STATE ──────────────────────────────────────────
                 successView(order: order)
             } else {
-                // ── CONFIRM STATE ──────────────────────────────────────────
                 confirmView
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Theme.background)
+        .ignoresSafeArea(.all)   // ← eliminates the gap; header padding handles safe area
         .alert("Order Failed", isPresented: $showError) {
             Button("OK", role: .cancel) {
                 isPlacingOrder = false   // Re-enable button on error
@@ -44,12 +47,25 @@ struct OrderConfirmationScreen: View {
             Text(errorMessage)
         }
     }
-    
+
+    // Safe area helpers — needed because we use .ignoresSafeArea(.all)
+    private var safeAreaTopInset: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.windows.first?.safeAreaInsets.top ?? 44
+    }
+    private var safeAreaBottomInset: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.windows.first?.safeAreaInsets.bottom ?? 34
+    }
+
     // MARK: - Confirm View
-    
+
     private var confirmView: some View {
         VStack(spacing: 0) {
-            // Header
+
+            // ── Header (manually handles safe area since we use ignoresSafeArea) ─
             HStack {
                 Button(action: { presentationMode.wrappedValue.dismiss() }) {
                     Image(systemName: "xmark")
@@ -68,14 +84,22 @@ struct OrderConfirmationScreen: View {
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
+            .padding(.top, safeAreaTopInset)   // ← manually compensate for status bar
             .background(Color(hex: "1E293B"))
-            .overlay(Rectangle().frame(height: 1).foregroundColor(Color.white.opacity(0.08)), alignment: .bottom)
-            
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Customer Info Card
+            .overlay(
+                Rectangle().frame(height: 1).foregroundColor(Color.white.opacity(0.08)),
+                alignment: .bottom
+            )
+
+            // ── Scrollable Cards ──────────────────────────────────────────
+            // ScrollView fills all remaining space between header and button
+            // because it is the only flexible child in this VStack.
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 16) {
+
+                    // Your Details
                     infoCard(title: "Your Details") {
-                        DetailRow(label: "Name", value: customerName)
+                        DetailRow(label: "Name",  value: customerName)
                         DetailRow(label: "Phone", value: customerPhone)
                         if let notes = specialNotes, !notes.isEmpty {
                             VStack(alignment: .leading, spacing: 6) {
@@ -88,8 +112,8 @@ struct OrderConfirmationScreen: View {
                             }
                         }
                     }
-                    
-                    // Payment Card
+
+                    // Payment
                     infoCard(title: "Payment") {
                         HStack(spacing: 12) {
                             Image(systemName: paymentMethod.iconName)
@@ -104,7 +128,7 @@ struct OrderConfirmationScreen: View {
                             }
                         }
                     }
-                    
+
                     // Order Summary
                     infoCard(title: "Order Summary") {
                         ForEach(cartManager.items) { item in
@@ -143,49 +167,63 @@ struct OrderConfirmationScreen: View {
                         }
                     }
                 }
-                .padding(20)
-                .padding(.bottom, 120)
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 20)
             }
-            
-            // Place Order Button
-            VStack {
+
+            // ── Place Order Button — pinned to the bottom ─────────────────
+            VStack(spacing: 0) {
+                // Subtle gradient fade from transparent → background
+                LinearGradient(
+                    colors: [Theme.background.opacity(0), Theme.background],
+                    startPoint: .top, endPoint: .bottom
+                )
+                .frame(height: 24)
+
                 Button(action: placeOrder) {
                     HStack {
                         if isPlacingOrder {
-                            ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .padding(.trailing, 6)
                             Text("Placing Order...")
+                                .font(.system(size: 17, weight: .bold))
                         } else {
-                            Text("Place Order").font(.system(size: 17, weight: .bold))
+                            Text("Place Order")
+                                .font(.system(size: 17, weight: .bold))
                             Spacer()
-                            Text(String(format: "$%.2f", cartManager.total)).font(.system(size: 17, weight: .bold))
+                            Text(String(format: "$%.2f", cartManager.total))
+                                .font(.system(size: 17, weight: .bold))
                         }
                     }
                     .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 18)
                     .background(
                         isPlacingOrder
-                        ? LinearGradient(colors: [.gray, .gray], startPoint: .leading, endPoint: .trailing)
-                        : LinearGradient(colors: [Color(hex: "3B82F6"), Color(hex: "2563EB")], startPoint: .leading, endPoint: .trailing)
+                            ? LinearGradient(colors: [.gray, .gray], startPoint: .leading, endPoint: .trailing)
+                            : LinearGradient(colors: [Color(hex: "3B82F6"), Color(hex: "2563EB")], startPoint: .leading, endPoint: .trailing)
                     )
                     .cornerRadius(16)
-                    .shadow(color: Color(hex: "3B82F6").opacity(0.4), radius: 12, x: 0, y: 6)
+                    .shadow(color: Color(hex: "3B82F6").opacity(isPlacingOrder ? 0 : 0.4), radius: 12, x: 0, y: 6)
                 }
                 .disabled(isPlacingOrder)
-                .opacity(isPlacingOrder ? 0.7 : 1.0)
+                .padding(.horizontal, 20)
+                .padding(.bottom, safeAreaBottomInset + 8)   // ← above home indicator
+                .padding(.top, 4)
+                .background(Theme.background)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 20)
-            .background(LinearGradient(colors: [Theme.background.opacity(0.95), Theme.background], startPoint: .top, endPoint: .bottom))
         }
     }
-    
+
     // MARK: - Success View
-    
+
     private func successView(order: Order) -> some View {
         VStack(spacing: 0) {
             Spacer()
-            
+
             // Checkmark + Order ID
             VStack(spacing: 20) {
                 ZStack {
@@ -197,16 +235,16 @@ struct OrderConfirmationScreen: View {
                         .foregroundColor(.white)
                 }
                 .shadow(color: Color(hex: "10B981").opacity(0.5), radius: 20, x: 0, y: 10)
-                
+
                 Text("Order Placed!")
                     .font(.system(size: 30, weight: .bold))
                     .foregroundColor(.white)
-                
+
                 Text("Order ID")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.white.opacity(0.5))
                     .tracking(1.5)
-                
+
                 Text(order.displayOrderNumber)
                     .font(.system(size: 42, weight: .bold, design: .monospaced))
                     .foregroundColor(Color(hex: "3B82F6"))
@@ -215,7 +253,7 @@ struct OrderConfirmationScreen: View {
                     .background(Color(hex: "1E293B"))
                     .cornerRadius(16)
                     .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(hex: "3B82F6").opacity(0.3), lineWidth: 1))
-                
+
                 Text("We've received your order.\nTrack updates below 👇")
                     .font(.system(size: 16))
                     .foregroundColor(.white.opacity(0.7))
@@ -223,9 +261,9 @@ struct OrderConfirmationScreen: View {
                     .lineSpacing(4)
             }
             .padding(.horizontal, 32)
-            
+
             Spacer()
-            
+
             // Action Buttons
             VStack(spacing: 12) {
                 Button(action: { onOrderPlaced(order.id) }) {
@@ -238,7 +276,7 @@ struct OrderConfirmationScreen: View {
                         .cornerRadius(16)
                         .shadow(color: Color(hex: "3B82F6").opacity(0.4), radius: 12, x: 0, y: 6)
                 }
-                
+
                 Button(action: { onDismiss() }) {
                     Text("Back to Menu")
                         .font(.system(size: 16, weight: .semibold))
@@ -248,7 +286,7 @@ struct OrderConfirmationScreen: View {
                         .background(Color.white.opacity(0.07))
                         .cornerRadius(16)
                 }
-                
+
                 // Edit contact details — only when status is still .received
                 if order.status == .received {
                     Button(action: { showEditSheet = true }) {
@@ -263,28 +301,39 @@ struct OrderConfirmationScreen: View {
             .padding(.bottom, 48)
         }
     }
-    
+
     // MARK: - Helpers
-    
+
     @ViewBuilder
     private func infoCard<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(title)
                 .font(.system(size: 17, weight: .bold))
                 .foregroundColor(.white)
-            content()
+            VStack(alignment: .leading, spacing: 10) {
+                content()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
         .background(Color(hex: "1E293B"))
         .cornerRadius(16)
     }
-    
+
     // MARK: - Place Order
-    
+
     private func placeOrder() {
         guard !isPlacingOrder else { return }
+
+        guard !cartManager.items.isEmpty else {
+            errorMessage = "Your cart is empty."
+            showError = true
+            return
+        }
+
         isPlacingOrder = true
-        
+
         Task {
             do {
                 let order = try await SupabaseManager.shared.createOrder(
@@ -296,7 +345,6 @@ struct OrderConfirmationScreen: View {
                     customerPhone: customerPhone
                 )
                 await MainActor.run {
-                    // Cart cleared ONLY after full success
                     cartManager.clear()
                     withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                         placedOrder = order
@@ -304,7 +352,7 @@ struct OrderConfirmationScreen: View {
                 }
             } catch {
                 await MainActor.run {
-                    isPlacingOrder = false  // Re-enable button
+                    isPlacingOrder = false
                     errorMessage = error.localizedDescription
                     showError = true
                 }

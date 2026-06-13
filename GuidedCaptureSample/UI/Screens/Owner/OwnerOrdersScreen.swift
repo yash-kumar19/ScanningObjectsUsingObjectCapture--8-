@@ -101,7 +101,7 @@ struct OwnerOrdersScreen: View {
                                     order: order,
                                     isNew: selectedTab == .new,
                                     onAccept: {
-                                        updateStatus(order, to: .preparing)
+                                        updateStatus(order, to: .confirmed)
                                     },
                                     onViewDetail: {
                                         selectedOrder = order
@@ -128,7 +128,7 @@ struct OwnerOrdersScreen: View {
         .sheet(item: $selectedOrder) { order in
             OwnerOrderDetailSheet(
                 order: order,
-                onAccept: { updateStatus(order, to: .preparing) },
+                onAccept: { updateStatus(order, to: .confirmed) },
                 onReject: { updateStatus(order, to: .cancelled) },
                 onComplete: { updateStatus(order, to: .completed) }
             )
@@ -324,7 +324,7 @@ struct OwnerOrderCard: View {
             // Action buttons
             if isNew {
                 Button(action: onAccept) {
-                    Text("Accept & Start Preparing")
+                    Text("Accept Order")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -377,15 +377,15 @@ struct OwnerOrderDetailSheet: View {
     @Environment(\.dismiss) var dismiss
 
     var statusSteps: [(label: String, done: Bool, active: Bool)] {
-        let statuses: [OrderStatus] = [.received, .preparing, .completed]
+        let statuses: [OrderStatus] = [.received, .confirmed, .completed]
         return statuses.map { s in
             let isDone = stepCompleted(s)
             let isActive: Bool
             switch s {
             case .received:
                 isActive = order.status == .received || order.status == .placed
-            case .preparing:
-                isActive = order.status == .preparing || order.status == .confirmed || order.status == .accepted || order.status == .ready
+            case .confirmed:
+                isActive = order.status == .confirmed || order.status == .accepted || order.status == .preparing || order.status == .ready
             case .completed:
                 isActive = order.status == .completed
             default:

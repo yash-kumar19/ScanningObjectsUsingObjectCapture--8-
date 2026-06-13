@@ -17,10 +17,15 @@ struct CustomerOrderStatusScreen: View {
     @State private var errorMessage: String?
     @StateObject private var pollingManager = OrderPollingManager()
     
+    // Safe area helpers
+    private var safeAreaTopInset: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.windows.first?.safeAreaInsets.top ?? 44
+    }
+
     var body: some View {
-        ZStack {
-            Theme.background.ignoresSafeArea()
-            
+        Group {
             VStack(spacing: 0) {
                 // Header
                 HStack {
@@ -48,6 +53,7 @@ struct CustomerOrderStatusScreen: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 16)
+                .padding(.top, safeAreaTopInset)
                 .background(Color(hex: "1E293B"))
                 .overlay(
                     Rectangle()
@@ -151,15 +157,12 @@ struct CustomerOrderStatusScreen: View {
                                     .font(.system(size: 18, weight: .bold))
                                     .foregroundColor(.white)
                                 
-                                // Customer Name
                                 if let customerName = order.customer_name {
                                     DetailRow(label: "Name", value: customerName)
                                 }
                                 
-                                // Payment Method
                                 DetailRow(label: "Payment", value: order.payment_method.displayName)
                                 
-                                // Special Notes
                                 if let notes = order.special_notes, !notes.isEmpty {
                                     VStack(alignment: .leading, spacing: 8) {
                                         Text("Special Instructions")
@@ -180,7 +183,6 @@ struct CustomerOrderStatusScreen: View {
                                     .background(Color.white.opacity(0.1))
                                     .padding(.vertical, 4)
                                 
-                                // Price Summary
                                 VStack(spacing: 8) {
                                     DetailRow(label: "Subtotal", value: String(format: "$%.2f", order.subtotal))
                                     DetailRow(label: "Tax", value: String(format: "$%.2f", order.tax))
@@ -209,11 +211,11 @@ struct CustomerOrderStatusScreen: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Theme.background)
+        .ignoresSafeArea(.all)
         .task {
-            // Initial load
             await loadOrder()
-            
-            // Start polling (5 seconds for customer)
             pollingManager.startPolling(interval: 5.0) {
                 await loadOrder()
             }
@@ -285,7 +287,7 @@ struct CustomerOrderStatusScreen: View {
 struct OrderStatusProgress: View {
     let currentStatus: OrderStatus
     
-    private let statuses: [OrderStatus] = [.received, .preparing, .ready, .completed]
+    private let statuses: [OrderStatus] = [.received, .confirmed, .completed]
     
     private func normalizedStatus(_ status: OrderStatus) -> OrderStatus {
         switch status {
@@ -293,10 +295,8 @@ struct OrderStatusProgress: View {
             return .received
         case .received, .placed:
             return .received
-        case .confirmed, .accepted, .preparing:
-            return .preparing
-        case .ready:
-            return .ready
+        case .confirmed, .accepted, .preparing, .ready:
+            return .confirmed
         case .completed:
             return .completed
         case .cancelled:

@@ -12,6 +12,7 @@ struct CartScreen: View {
     @Environment(\.presentationMode) var presentationMode
     
     var onCheckout: () -> Void
+    var onViewOrderStatus: (() -> Void)?   // nil when no pending order
     
     var body: some View {
         ZStack {
@@ -20,6 +21,8 @@ struct CartScreen: View {
             VStack(spacing: 0) {
                 // Header
                 HStack {
+                    Color.clear.frame(width: 40)   // balance the right button
+                    
                     Spacer()
                     
                     Text("Cart")
@@ -27,6 +30,26 @@ struct CartScreen: View {
                         .foregroundColor(.white)
                     
                     Spacer()
+                    
+                    // Order Status shortcut — shown only when there is a recent order
+                    if let callback = onViewOrderStatus {
+                        Button(action: callback) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .font(.system(size: 12, weight: .semibold))
+                                Text("Order")
+                                    .font(.system(size: 12, weight: .semibold))
+                            }
+                            .foregroundColor(Color(hex: "3B82F6"))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color(hex: "3B82F6").opacity(0.12))
+                            .clipShape(Capsule())
+                            .overlay(Capsule().stroke(Color(hex: "3B82F6").opacity(0.3), lineWidth: 1))
+                        }
+                    } else {
+                        Color.clear.frame(width: 40)
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 16)

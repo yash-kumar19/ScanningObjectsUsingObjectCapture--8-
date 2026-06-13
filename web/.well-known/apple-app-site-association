@@ -1,0 +1,13 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "TEAMID.com.example.apple-samplecode.guided-capture-sample",
+        "paths": [
+          "/menu/*"
+        ]
+      }
+    ]
+  }
+}

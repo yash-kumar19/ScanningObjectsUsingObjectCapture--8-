@@ -77,7 +77,15 @@ struct HomeView: View {
                             customerNamePrefill = ""
                             showCustomerInfoSheet = true
                         }
-                    })
+                    }, onViewOrderStatus: pendingOrderId != nil ? {
+                        // Re-trigger the fullScreenCover — pendingOrderId is already set,
+                        // force re-presentation by briefly clearing then restoring.
+                        let saved = pendingOrderId
+                        pendingOrderId = nil
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                            pendingOrderId = saved
+                        }
+                    } : nil)
                 } else {
                     // Restaurant Portal Tab (Owners only)
                     RestaurantPortalView(
