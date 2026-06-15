@@ -14,45 +14,59 @@ struct CartScreen: View {
     var onCheckout: () -> Void
     var onViewOrderStatus: (() -> Void)?   // nil when no pending order
     
+    // Safe area helper — CartScreen is inside a ZStack without NavigationView,
+    // so we must manually account for the status bar.
+    private var safeAreaTopInset: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.windows.first?.safeAreaInsets.top ?? 44
+    }
+    
     var body: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Header
-                HStack {
-                    Color.clear.frame(width: 40)   // balance the right button
+                // Header — extend background through the status bar
+                VStack(spacing: 0) {
+                    // Status bar spacer (filled with the same header color)
+                    Color(hex: "1E293B")
+                        .frame(height: safeAreaTopInset)
                     
-                    Spacer()
-                    
-                    Text("Cart")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(.white)
-                    
-                    Spacer()
-                    
-                    // Order Status shortcut — shown only when there is a recent order
-                    if let callback = onViewOrderStatus {
-                        Button(action: callback) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "clock.arrow.circlepath")
-                                    .font(.system(size: 12, weight: .semibold))
-                                Text("Order")
-                                    .font(.system(size: 12, weight: .semibold))
+                    HStack {
+                        Color.clear.frame(width: 40)   // balance the right button
+                        
+                        Spacer()
+                        
+                        Text("Cart")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.white)
+                        
+                        Spacer()
+                        
+                        // Order Status shortcut — shown only when there is a recent order
+                        if let callback = onViewOrderStatus {
+                            Button(action: callback) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "clock.arrow.circlepath")
+                                        .font(.system(size: 12, weight: .semibold))
+                                    Text("Order")
+                                        .font(.system(size: 12, weight: .semibold))
+                                }
+                                .foregroundColor(Color(hex: "3B82F6"))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color(hex: "3B82F6").opacity(0.12))
+                                .clipShape(Capsule())
+                                .overlay(Capsule().stroke(Color(hex: "3B82F6").opacity(0.3), lineWidth: 1))
                             }
-                            .foregroundColor(Color(hex: "3B82F6"))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color(hex: "3B82F6").opacity(0.12))
-                            .clipShape(Capsule())
-                            .overlay(Capsule().stroke(Color(hex: "3B82F6").opacity(0.3), lineWidth: 1))
+                        } else {
+                            Color.clear.frame(width: 40)
                         }
-                    } else {
-                        Color.clear.frame(width: 40)
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
                 .background(Color(hex: "1E293B"))
                 .overlay(
                     Rectangle()
@@ -62,10 +76,8 @@ struct CartScreen: View {
                 )
                 
                 if cartManager.isEmpty {
-                    // Empty State
+                    // Empty State — positioned naturally near the top
                     VStack(spacing: 20) {
-                        Spacer()
-                        
                         Image(systemName: "cart")
                             .font(.system(size: 60))
                             .foregroundColor(Color.white.opacity(0.3))
@@ -78,13 +90,13 @@ struct CartScreen: View {
                             .font(.system(size: 15))
                             .foregroundColor(Color.white.opacity(0.6))
                             .multilineTextAlignment(.center)
-                        
-                        Spacer()
                     }
-                    .padding(40)
+                    .padding(.horizontal, 40)
+                    .padding(.top, 80)
+                    
+                    Spacer()  // Push remaining space below
                 } else {
                     // Cart Items + Bottom Summary
-                    // ScrollView fills the middle, summary is pinned below it
                     ScrollView {
                         VStack(spacing: 16) {
                             ForEach(cartManager.items) { item in
@@ -198,12 +210,13 @@ struct CartScreen: View {
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 16)
-                        .padding(.bottom, 34)
+                        .padding(.bottom, 100) // Clear space for the floating tab bar
                     }
                     .background(Theme.background)
                 }
             }
         }
+        .ignoresSafeArea(.all, edges: .top) // Let us handle safe area manually
     }
 }
 
