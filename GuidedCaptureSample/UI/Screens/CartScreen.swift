@@ -14,6 +14,8 @@ struct CartScreen: View {
     var onCheckout: () -> Void
     var onViewOrderStatus: (() -> Void)?   // nil when no pending order
     
+    @State private var showOrdersDetails = false
+    
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -28,24 +30,26 @@ struct CartScreen: View {
                 
                 Spacer()
                 
-                // Order Status shortcut
-                if let callback = onViewOrderStatus {
-                    Button(action: callback) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "clock.arrow.circlepath")
-                                .font(.system(size: 12, weight: .semibold))
-                            Text("Order")
-                                .font(.system(size: 12, weight: .semibold))
+                // Persistent Orders button
+                Button(action: { showOrdersDetails = true }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "list.clipboard")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Orders")
+                            .font(.system(size: 12, weight: .semibold))
+                        
+                        if onViewOrderStatus != nil {
+                            Circle()
+                                .fill(Color.orange)
+                                .frame(width: 6, height: 6)
                         }
-                        .foregroundColor(Color(hex: "3B82F6"))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color(hex: "3B82F6").opacity(0.12))
-                        .clipShape(Capsule())
-                        .overlay(Capsule().stroke(Color(hex: "3B82F6").opacity(0.3), lineWidth: 1))
                     }
-                } else {
-                    Color.clear.frame(width: 40, height: 40)
+                    .foregroundColor(Color(hex: "3B82F6"))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color(hex: "3B82F6").opacity(0.12))
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(Color(hex: "3B82F6").opacity(0.3), lineWidth: 1))
                 }
             }
             .padding(.horizontal, 20)
@@ -202,6 +206,9 @@ struct CartScreen: View {
             }
         }
         .background(Theme.background.ignoresSafeArea())
+        .fullScreenCover(isPresented: $showOrdersDetails) {
+            OrdersDetailsScreen()
+        }
     }
 }
 
@@ -302,3 +309,385 @@ struct CartItemRow: View {
 #Preview {
     CartScreen(onCheckout: {})
 }
+
+// MARK: - Orders Details Screen
+
+struct OrdersDetailsScreen: View {
+    @Environment(\.presentationMode) var presentationMode
+    @ObservedObject var historyManager = OrderHistoryManager.shared
+    
+    @State private var orders: [Order] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String? = nil
+    @State private var selectedTab = 0 // 0 = Active, 1 = History
+    @State private var selectedOrderId: String? = nil
+    
+    private var safeAreaTopInset: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.windows.first?.safeAreaInsets.top ?? 44
+    }
+    
+    var activeOrders: [Order] {
+        orders.filter { $0.status != .completed && $0.status != .cancelled }
+    }
+    
+    struct GroupedOrders: Identifiable {
+        let id = UUID()
+        let dateHeader: String
+        let orders: [Order]
+    }
+    
+    var groupedHistoryOrders: [GroupedOrders] {
+        let history = orders.filter { $0.status == .completed || $0.status == .cancelled }
+        let dictionary = Dictionary(grouping: history) { formatDateHeader($0.created_at) }
+        
+        return dictionary.map { key, value in
+            GroupedOrders(dateHeader: key, orders: value.sorted { $0.created_at > $1.created_at })
+        }.sorted { g1, g2 in
+            guard let o1 = g1.orders.first, let o2 = g2.orders.first else { return false }
+            return o1.created_at > o2.created_at
+        }
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Button(action: { presentationMode.wrappedValue.dismiss() }) {
+                    Image(systemName: "xmark")
+                        .foregroundColor(.white)
+                        .frame(width: 40, height: 40)
+                        .background(Color.white.opacity(0.05))
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
+                }
+                
+                Spacer()
+                
+                Text("My Orders")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(.white)
+                
+                Spacer()
+                
+                Color.clear.frame(width: 40, height: 40)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .background(
+                Color(hex: "1E293B")
+                    .ignoresSafeArea(.container, edges: .top)
+            )
+            .overlay(
+                Rectangle().frame(height: 1).foregroundColor(Color.white.opacity(0.08)),
+                alignment: .bottom
+            )
+            
+            // Tab Selector
+            HStack(spacing: 0) {
+                tabButton(title: "Active Orders", index: 0)
+                tabButton(title: "Order History", index: 1)
+            }
+            .background(Color(hex: "1E293B").opacity(0.5))
+            .padding(.top, 0)
+            
+            // Content
+            ZStack {
+                Theme.background.ignoresSafeArea()
+                
+                if isLoading {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .scaleEffect(1.2)
+                        Text("Loading orders...")
+                            .font(.system(size: 15))
+                            .foregroundColor(Color.white.opacity(0.6))
+                    }
+                } else if let error = errorMessage {
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 44))
+                            .foregroundColor(.orange)
+                        Text(error)
+                            .font(.system(size: 15))
+                            .foregroundColor(.white.opacity(0.8))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                        
+                        Button(action: {
+                            Task {
+                                await fetchAllOrders()
+                            }
+                        }) {
+                            Text("Retry")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 12)
+                                .background(Color(hex: "3B82F6"))
+                                .cornerRadius(12)
+                        }
+                        .padding(.top, 8)
+                    }
+                } else if historyManager.orderIds.isEmpty {
+                    emptyStateView(icon: "doc.plaintext", message: "You haven't placed any orders yet")
+                } else {
+                    if selectedTab == 0 {
+                        // Active Orders
+                        if activeOrders.isEmpty {
+                            emptyStateView(icon: "bell.slash", message: "No active orders right now")
+                        } else {
+                            ScrollView {
+                                LazyVStack(spacing: 12) {
+                                    ForEach(activeOrders) { order in
+                                        orderRow(order: order)
+                                    }
+                                }
+                                .padding(20)
+                            }
+                        }
+                    } else {
+                        // Order History
+                        if groupedHistoryOrders.isEmpty {
+                            emptyStateView(icon: "clock.arrow.circlepath", message: "No past orders in your history")
+                        } else {
+                            ScrollView {
+                                LazyVStack(spacing: 20) {
+                                    ForEach(groupedHistoryOrders) { group in
+                                        VStack(alignment: .leading, spacing: 10) {
+                                            Text(group.dateHeader)
+                                                .font(.system(size: 16, weight: .bold))
+                                                .foregroundColor(Color.white.opacity(0.5))
+                                                .padding(.horizontal, 4)
+                                            
+                                            ForEach(group.orders) { order in
+                                                orderRow(order: order)
+                                            }
+                                        }
+                                    }
+                                }
+                                .padding(20)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Theme.background.ignoresSafeArea())
+        .onAppear {
+            Task {
+                await fetchAllOrders()
+            }
+        }
+        .fullScreenCover(item: Binding(
+            get: { selectedOrderId.map { OrderIdWrapper(id: $0) } },
+            set: { if $0 == nil { selectedOrderId = nil } }
+        )) { wrapper in
+            CustomerOrderStatusScreen(orderId: wrapper.id)
+        }
+    }
+    
+    // MARK: - Subviews
+    
+    private func tabButton(title: String, index: Int) -> some View {
+        Button(action: {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                selectedTab = index
+            }
+        }) {
+            VStack(spacing: 8) {
+                Text(title)
+                    .font(.system(size: 15, weight: selectedTab == index ? .bold : .medium))
+                    .foregroundColor(selectedTab == index ? .white : Color.white.opacity(0.5))
+                    .padding(.top, 14)
+                
+                // Underline indicator
+                Rectangle()
+                    .fill(selectedTab == index ? Color(hex: "3B82F6") : Color.clear)
+                    .frame(height: 3)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private func emptyStateView(icon: String, message: String) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.system(size: 48))
+                .foregroundColor(Color.white.opacity(0.2))
+            
+            Text(message)
+                .font(.system(size: 16))
+                .foregroundColor(Color.white.opacity(0.5))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+        }
+        .frame(maxHeight: .infinity)
+    }
+    
+    private func orderRow(order: Order) -> some View {
+        Button(action: {
+            selectedOrderId = order.id
+        }) {
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Text(order.displayOrderNumber)
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white)
+                        
+                        Text(formatOrderTime(order.created_at))
+                            .font(.system(size: 13))
+                            .foregroundColor(Color.white.opacity(0.4))
+                    }
+                    
+                    Text("\(order.items?.count ?? 0) items • \(String(format: "$%.2f", order.total))")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color.white.opacity(0.7))
+                }
+                
+                Spacer()
+                
+                // Status Badge
+                Text(order.status.displayName)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(statusColor(order.status).opacity(0.15))
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(statusColor(order.status).opacity(0.4), lineWidth: 1)
+                    )
+            }
+            .padding(16)
+            .background(Color(hex: "1E293B"))
+            .cornerRadius(16)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func statusColor(_ status: OrderStatus) -> Color {
+        switch status {
+        case .pending:
+            return Color(hex: "6B7280")
+        case .received, .placed:
+            return Color(hex: "3B82F6")
+        case .confirmed, .accepted:
+            return Color(hex: "3B82F6")
+        case .preparing:
+            return Color(hex: "F59E0B")
+        case .ready:
+            return Color(hex: "10B981")
+        case .completed:
+            return Color(hex: "10B981")
+        case .cancelled:
+            return Color(hex: "EF4444")
+        }
+    }
+    
+    func fetchAllOrders() async {
+        let ids = historyManager.orderIds
+        guard !ids.isEmpty else {
+            await MainActor.run {
+                self.orders = []
+                self.isLoading = false
+            }
+            return
+        }
+        
+        await MainActor.run { self.isLoading = true; self.errorMessage = nil }
+        
+        do {
+            var fetchedOrders: [Order] = []
+            try await withThrowingTaskGroup(of: Order?.self) { group in
+                for id in ids {
+                    group.addTask {
+                        do {
+                            return try await SupabaseManager.shared.fetchOrderById(id)
+                        } catch {
+                            print("Error fetching order \(id): \(error)")
+                            return nil
+                        }
+                    }
+                }
+                
+                for try await orderOpt in group {
+                    if let order = orderOpt {
+                        fetchedOrders.append(order)
+                    }
+                }
+            }
+            
+            // Sort by created_at descending
+            fetchedOrders.sort { o1, o2 in
+                o1.created_at > o2.created_at
+            }
+            
+            await MainActor.run {
+                self.orders = fetchedOrders
+                self.isLoading = false
+            }
+        } catch {
+            await MainActor.run {
+                self.errorMessage = error.localizedDescription
+                self.isLoading = false
+            }
+        }
+    }
+    
+    private func formatDateHeader(_ dateString: String) -> String {
+        let inputFormatter = ISO8601DateFormatter()
+        inputFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        var date = inputFormatter.date(from: dateString)
+        if date == nil {
+            let altFormatter = ISO8601DateFormatter()
+            date = altFormatter.date(from: dateString)
+        }
+        
+        guard let date = date else { return "Past Orders" }
+        
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "Today"
+        } else if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        } else {
+            let outputFormatter = DateFormatter()
+            outputFormatter.dateStyle = .medium
+            outputFormatter.timeStyle = .none
+            return outputFormatter.string(from: date)
+        }
+    }
+    
+    private func formatOrderTime(_ dateString: String) -> String {
+        let inputFormatter = ISO8601DateFormatter()
+        inputFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        var date = inputFormatter.date(from: dateString)
+        if date == nil {
+            let altFormatter = ISO8601DateFormatter()
+            date = altFormatter.date(from: dateString)
+        }
+        
+        guard let date = date else { return "" }
+        
+        let outputFormatter = DateFormatter()
+        outputFormatter.dateStyle = .none
+        outputFormatter.timeStyle = .short
+        return outputFormatter.string(from: date)
+    }
+}
+

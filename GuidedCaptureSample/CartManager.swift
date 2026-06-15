@@ -175,3 +175,32 @@ class CartManager: ObservableObject {
         restaurantName = UserDefaults.standard.string(forKey: restaurantNameKey)
     }
 }
+
+// MARK: - Order History Manager
+
+class OrderHistoryManager: ObservableObject {
+    static let shared = OrderHistoryManager()
+    
+    @Published var orderIds: [String] = []
+    
+    private let orderIdsKey = "placed_order_ids"
+    
+    init() {
+        loadOrderIds()
+    }
+    
+    func addOrderId(_ id: String) {
+        if !orderIds.contains(id) {
+            orderIds.append(id)
+            saveOrderIds()
+        }
+    }
+    
+    private func saveOrderIds() {
+        UserDefaults.standard.set(orderIds, forKey: orderIdsKey)
+    }
+    
+    private func loadOrderIds() {
+        orderIds = UserDefaults.standard.stringArray(forKey: orderIdsKey) ?? []
+    }
+}

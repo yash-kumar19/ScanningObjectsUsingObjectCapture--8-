@@ -199,37 +199,28 @@ extension SupabaseManager {
         let optionalToken: String? = try? await getValidAccessTokenOrRefresh()
         let bearer = optionalToken ?? SupabaseConfig.anonKey
         
-        let url = SupabaseConfig.databaseURL.appendingPathComponent("orders")
-            .appending(queryItems: [
-                URLQueryItem(name: "id", value: "eq.\(orderId)"),
-                URLQueryItem(name: "select", value: "*")
-            ])
+        let url = SupabaseConfig.databaseURL.appendingPathComponent("rpc/get_customer_order_by_id")
+        let payload: [String: Any] = ["p_order_id": orderId]
         
         var request = URLRequest(url: url, timeoutInterval: 15)
-        request.httpMethod = "GET"
+        request.httpMethod = "POST"
         request.addValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
         request.addValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+              (200...299).contains(httpResponse.statusCode) else {
             if let httpResponse = response as? HTTPURLResponse {
                 let errorBody = String(data: data, encoding: .utf8) ?? "<no body>"
-                print("❌ fetchOrderById [\(httpResponse.statusCode)]: \(errorBody)")
+                print("❌ fetchOrderById RPC [\(httpResponse.statusCode)]: \(errorBody)")
             }
             throw URLError(.badServerResponse)
         }
         
-        let orders = try JSONDecoder().decode([Order].self, from: data)
-        guard let order = orders.first else {
-            // RLS blocked the SELECT — return a minimal placeholder so the UI
-            // at least shows the order number without crashing.
-            throw SupabaseAPIError(statusCode: 403, message: "Order not accessible. Check restaurant RLS policies.")
-        }
-        
-        return order
+        return try JSONDecoder().decode(Order.self, from: data)
     }
     
     /// Update order status with state machine validation

@@ -333,6 +333,7 @@ struct OrderConfirmationScreen: View {
                 )
                 await MainActor.run {
                     cartManager.clear()
+                    OrderHistoryManager.shared.addOrderId(order.id)
                     withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                         placedOrder = order
                     }
