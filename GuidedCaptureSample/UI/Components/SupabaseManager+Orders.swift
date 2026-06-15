@@ -32,20 +32,17 @@ extension SupabaseManager {
         
         let clientToken = "order_\(UUID().uuidString)"
         
-        // Build payload omitting nil optional fields (avoids NSNull/JSON-null issues)
-        var rpcPayload: [String: Any] = [
+        // Build payload — ALL parameters must be present for PostgREST to
+        // match the function signature. Use empty strings for nil optionals.
+        let rpcPayload: [String: Any] = [
             "p_restaurant_id": restaurantId,
             "p_customer_name": customerName ?? "Customer",
+            "p_customer_phone": customerPhone ?? "",
             "p_table_number": "iOS",
             "p_items": itemsPayload,
-            "p_client_token": clientToken
+            "p_client_token": clientToken,
+            "p_special_instructions": specialNotes ?? ""
         ]
-        if let phone = customerPhone, !phone.isEmpty {
-            rpcPayload["p_customer_phone"] = phone
-        }
-        if let notes = specialNotes, !notes.isEmpty {
-            rpcPayload["p_special_instructions"] = notes
-        }
         
         let rpcURL = SupabaseConfig.databaseURL.appendingPathComponent("rpc/create_order_with_items")
         var rpcRequest = URLRequest(url: rpcURL, timeoutInterval: 20)

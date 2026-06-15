@@ -83,7 +83,8 @@ struct CartScreen: View {
                     }
                     .padding(40)
                 } else {
-                    // Cart Items List
+                    // Cart Items + Bottom Summary
+                    // ScrollView fills the middle, summary is pinned below it
                     ScrollView {
                         VStack(spacing: 16) {
                             ForEach(cartManager.items) { item in
@@ -110,11 +111,19 @@ struct CartScreen: View {
                             }
                         }
                         .padding(20)
-                        .padding(.bottom, 280)  // Space for summary card
+                        .padding(.bottom, 16)
                     }
                     
-                    // Order Summary & Checkout
+                    // Order Summary & Checkout — pinned at the bottom
                     VStack(spacing: 0) {
+                        // Subtle top fade
+                        LinearGradient(
+                            colors: [Theme.background.opacity(0), Theme.background],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 20)
+                        
                         // Summary Card
                         VStack(spacing: 12) {
                             HStack {
@@ -159,7 +168,6 @@ struct CartScreen: View {
                                 .stroke(Color.white.opacity(0.1), lineWidth: 1)
                         )
                         .padding(.horizontal, 20)
-                        .padding(.top, 20)
                         
                         // Checkout Button
                         Button(action: onCheckout) {
@@ -190,15 +198,9 @@ struct CartScreen: View {
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 16)
-                        .padding(.bottom, 120)
+                        .padding(.bottom, 34)
                     }
-                    .background(
-                        LinearGradient(
-                            colors: [Theme.background.opacity(0), Theme.background.opacity(0.95), Theme.background],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
+                    .background(Theme.background)
                 }
             }
         }
