@@ -17,6 +17,7 @@ struct HomeView: View {
     @State private var pendingOrderId: String? = nil
     @State private var pendingConfirmState: OrderConfirmState? = nil
     @State private var customerNamePrefill: String = ""
+    @State private var showOrdersDetailsGlobal = false
 
     @State private var isLoading = true
     @State private var showOwnerLogin = false
@@ -77,15 +78,11 @@ struct HomeView: View {
                             customerNamePrefill = ""
                             showCustomerInfoSheet = true
                         }
-                    }, onViewOrderStatus: pendingOrderId != nil ? {
-                        // Re-trigger the fullScreenCover — pendingOrderId is already set,
-                        // force re-presentation by briefly clearing then restoring.
-                        let saved = pendingOrderId
-                        pendingOrderId = nil
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                            pendingOrderId = saved
-                        }
-                    } : nil)
+                    },
+                    hasActiveOrder: pendingOrderId != nil,
+                    onViewOrders: {
+                        showOrdersDetailsGlobal = true
+                    })
                 } else {
                     // Restaurant Portal Tab (Owners only)
                     RestaurantPortalView(
@@ -174,6 +171,7 @@ struct HomeView: View {
                 onOrderPlaced: { orderId in
                     pendingOrderId = orderId
                     pendingConfirmState = nil  // dismisses this cover
+                    showOrdersDetailsGlobal = true
                 },
                 onDismiss: {
                     pendingOrderId = nil
@@ -181,11 +179,8 @@ struct HomeView: View {
                 }
             )
         }
-        .fullScreenCover(item: Binding(
-            get: { pendingOrderId.map { OrderIdWrapper(id: $0) } },
-            set: { if $0 == nil { pendingOrderId = nil } }
-        )) { wrapper in
-            CustomerOrderStatusScreen(orderId: wrapper.id)
+        .fullScreenCover(isPresented: $showOrdersDetailsGlobal) {
+            OrdersDetailsScreen()
         }
         .fullScreenCover(isPresented: $showQRScanner) {
             QRScannerView(

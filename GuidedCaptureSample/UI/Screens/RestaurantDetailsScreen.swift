@@ -25,6 +25,7 @@ struct RestaurantDetailsScreenV2: View {
     @State private var pendingConfirmState: OrderConfirmState? = nil
     @State private var pendingOrderId: String? = nil
     @State private var customerNamePrefill: String = ""
+    @State private var showOrdersDetailsGlobal = false
     
     @State private var dishes: [Dish] = []
     @State private var selectedDishForAR: Dish?
@@ -146,22 +147,29 @@ struct RestaurantDetailsScreenV2: View {
             }
         }
         .sheet(isPresented: $showCartScreen) {
-            CartScreen(onCheckout: {
-                showCartScreen = false
-                // Pre-fill name from logged-in profile's full_name
-                if let profile = SupabaseManager.shared.currentUser {
-                    Task {
-                        let name = (try? await fetchProfileFullName(userId: profile.id)) ?? ""
-                        await MainActor.run {
-                            customerNamePrefill = name
-                            showCustomerInfoSheet = true
+            CartScreen(
+                onCheckout: {
+                    showCartScreen = false
+                    // Pre-fill name from logged-in profile's full_name
+                    if let profile = SupabaseManager.shared.currentUser {
+                        Task {
+                            let name = (try? await fetchProfileFullName(userId: profile.id)) ?? ""
+                            await MainActor.run {
+                                customerNamePrefill = name
+                                showCustomerInfoSheet = true
+                            }
                         }
+                    } else {
+                        customerNamePrefill = ""
+                        showCustomerInfoSheet = true
                     }
-                } else {
-                    customerNamePrefill = ""
-                    showCustomerInfoSheet = true
+                },
+                hasActiveOrder: pendingOrderId != nil,
+                onViewOrders: {
+                    showCartScreen = false
+                    showOrdersDetailsGlobal = true
                 }
-            })
+            )
         }
         .sheet(isPresented: $showCustomerInfoSheet) {
             CustomerInfoSheet(
@@ -187,6 +195,7 @@ struct RestaurantDetailsScreenV2: View {
                     pendingConfirmState = nil
                     // Clear cart after checkout
                     cartManager.clear()
+                    showOrdersDetailsGlobal = true
                 },
                 onDismiss: {
                     pendingOrderId = nil
@@ -194,11 +203,8 @@ struct RestaurantDetailsScreenV2: View {
                 }
             )
         }
-        .fullScreenCover(item: Binding(
-            get: { pendingOrderId.map { OrderIdWrapper(id: $0) } },
-            set: { if $0 == nil { pendingOrderId = nil } }
-        )) { wrapper in
-            CustomerOrderStatusScreen(orderId: wrapper.id)
+        .fullScreenCover(isPresented: $showOrdersDetailsGlobal) {
+            OrdersDetailsScreen()
         }
         .alert("Replace cart items?", isPresented: $showRestaurantConflictAlert) {
             Button("Cancel", role: .cancel) { }

@@ -12,9 +12,8 @@ struct CartScreen: View {
     @Environment(\.presentationMode) var presentationMode
     
     var onCheckout: () -> Void
-    var onViewOrderStatus: (() -> Void)?   // nil when no pending order
-    
-    @State private var showOrdersDetails = false
+    var hasActiveOrder: Bool
+    var onViewOrders: () -> Void
     
     var body: some View {
         VStack(spacing: 0) {
@@ -31,14 +30,14 @@ struct CartScreen: View {
                 Spacer()
                 
                 // Persistent Orders button
-                Button(action: { showOrdersDetails = true }) {
+                Button(action: onViewOrders) {
                     HStack(spacing: 4) {
                         Image(systemName: "list.clipboard")
                             .font(.system(size: 12, weight: .semibold))
                         Text("Orders")
                             .font(.system(size: 12, weight: .semibold))
                         
-                        if onViewOrderStatus != nil {
+                        if hasActiveOrder {
                             Circle()
                                 .fill(Color.orange)
                                 .frame(width: 6, height: 6)
@@ -206,9 +205,6 @@ struct CartScreen: View {
             }
         }
         .background(Theme.background.ignoresSafeArea())
-        .fullScreenCover(isPresented: $showOrdersDetails) {
-            OrdersDetailsScreen()
-        }
     }
 }
 
@@ -307,7 +303,7 @@ struct CartItemRow: View {
 }
 
 #Preview {
-    CartScreen(onCheckout: {})
+    CartScreen(onCheckout: {}, hasActiveOrder: false, onViewOrders: {})
 }
 
 // MARK: - Orders Details Screen
