@@ -185,6 +185,7 @@ struct OwnerMenuScreen: View {
     @State private var showQRMenu = false
     @State private var showQRTooltip = false
     @AppStorage("hasSeenQRTooltip") private var hasSeenQRTooltip = false
+    @State private var restaurantName: String = "My Restaurant"
     
     // Custom formatted dishes for view
     var filteredDishes: [Dish] {
@@ -540,7 +541,7 @@ struct OwnerMenuScreen: View {
             if let userId = SupabaseManager.shared.currentUser?.id {
                 QRMenuView(
                     restaurantId: userId,
-                    restaurantName: "My Restaurant", // TODO: Fetch from profile if available
+                    restaurantName: restaurantName,
                     menuURL: AppConfig.menuURL(for: userId),
                     onDismiss: { showQRMenu = false }
                 )
@@ -600,6 +601,11 @@ struct OwnerMenuScreen: View {
         isLoading = true
         do {
             dishes = try await SupabaseManager.shared.fetchOwnerDishes()
+            if let rest = try? await SupabaseManager.shared.fetchOwnerRestaurant() {
+                await MainActor.run {
+                    self.restaurantName = rest.name
+                }
+            }
         } catch {
             print("Error loading dishes: \(error)")
         }
