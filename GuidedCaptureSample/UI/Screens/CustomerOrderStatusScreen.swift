@@ -49,7 +49,7 @@ struct CustomerOrderStatusScreen: View {
                     
                     Spacer()
                     
-                    Color.clear.frame(width: 40)
+                    Color.clear.frame(width: 40, height: 40)
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 16)

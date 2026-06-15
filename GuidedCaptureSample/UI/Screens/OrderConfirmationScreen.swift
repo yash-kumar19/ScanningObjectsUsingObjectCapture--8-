@@ -65,7 +65,7 @@ struct OrderConfirmationScreen: View {
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(.white)
                 Spacer()
-                Color.clear.frame(width: 40)
+                Color.clear.frame(width: 40, height: 40)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 12)

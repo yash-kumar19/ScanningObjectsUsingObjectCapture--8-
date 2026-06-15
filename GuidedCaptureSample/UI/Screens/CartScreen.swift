@@ -18,7 +18,7 @@ struct CartScreen: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Color.clear.frame(width: 40)
+                Color.clear.frame(width: 40, height: 40)
                 
                 Spacer()
                 
@@ -45,7 +45,7 @@ struct CartScreen: View {
                         .overlay(Capsule().stroke(Color(hex: "3B82F6").opacity(0.3), lineWidth: 1))
                     }
                 } else {
-                    Color.clear.frame(width: 40)
+                    Color.clear.frame(width: 40, height: 40)
                 }
             }
             .padding(.horizontal, 20)
@@ -60,146 +60,145 @@ struct CartScreen: View {
                     .foregroundColor(Color.white.opacity(0.08)),
                 alignment: .bottom
             )
-                
-                if cartManager.isEmpty {
-                    // Empty State — positioned naturally near the top
-                    VStack(spacing: 20) {
-                        Image(systemName: "cart")
-                            .font(.system(size: 60))
-                            .foregroundColor(Color.white.opacity(0.3))
-                        
-                        Text("Your cart is empty")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundColor(.white)
-                        
-                        Text("Add items from the menu to get started")
-                            .font(.system(size: 15))
-                            .foregroundColor(Color.white.opacity(0.6))
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(.horizontal, 40)
-                    .padding(.top, 80)
+            
+            if cartManager.isEmpty {
+                // Empty State — positioned naturally near the top
+                VStack(spacing: 20) {
+                    Image(systemName: "cart")
+                        .font(.system(size: 60))
+                        .foregroundColor(Color.white.opacity(0.3))
                     
-                    Spacer()  // Push remaining space below
-                } else {
-                    // Cart Items + Bottom Summary
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            ForEach(cartManager.items) { item in
-                                CartItemRow(
-                                    item: item,
-                                    onIncrement: {
-                                        cartManager.updateQuantity(itemId: item.id, quantity: item.quantity + 1)
-                                    },
-                                    onDecrement: {
-                                        if item.quantity > 1 {
-                                            cartManager.updateQuantity(itemId: item.id, quantity: item.quantity - 1)
-                                        } else {
-                                            withAnimation {
-                                                cartManager.removeItem(item.id)
-                                            }
-                                        }
-                                    },
-                                    onDelete: {
+                    Text("Your cart is empty")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(.white)
+                    
+                    Text("Add items from the menu to get started")
+                        .font(.system(size: 15))
+                        .foregroundColor(Color.white.opacity(0.6))
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, 40)
+                .padding(.top, 80)
+                
+                Spacer()  // Push remaining space below
+            } else {
+                // Cart Items + Bottom Summary
+                ScrollView {
+                    VStack(spacing: 16) {
+                        ForEach(cartManager.items) { item in
+                            CartItemRow(
+                                item: item,
+                                onIncrement: {
+                                    cartManager.updateQuantity(itemId: item.id, quantity: item.quantity + 1)
+                                },
+                                onDecrement: {
+                                    if item.quantity > 1 {
+                                        cartManager.updateQuantity(itemId: item.id, quantity: item.quantity - 1)
+                                    } else {
                                         withAnimation {
                                             cartManager.removeItem(item.id)
                                         }
                                     }
-                                )
-                            }
-                        }
-                        .padding(20)
-                        .padding(.bottom, 16)
-                    }
-                    
-                    // Order Summary & Checkout — pinned at the bottom
-                    VStack(spacing: 0) {
-                        // Subtle top fade
-                        LinearGradient(
-                            colors: [Theme.background.opacity(0), Theme.background],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        .frame(height: 20)
-                        
-                        // Summary Card
-                        VStack(spacing: 12) {
-                            HStack {
-                                Text("Subtotal")
-                                    .font(.system(size: 15))
-                                    .foregroundColor(Color.white.opacity(0.7))
-                                Spacer()
-                                Text(String(format: "$%.2f", cartManager.subtotal))
-                                    .font(.system(size: 15, weight: .medium))
-                                    .foregroundColor(.white)
-                            }
-                            
-                            HStack {
-                                Text("Tax (5%)")
-                                    .font(.system(size: 15))
-                                    .foregroundColor(Color.white.opacity(0.7))
-                                Spacer()
-                                Text(String(format: "$%.2f", cartManager.tax))
-                                    .font(.system(size: 15, weight: .medium))
-                                    .foregroundColor(.white)
-                            }
-                            
-                            Divider()
-                                .background(Color.white.opacity(0.1))
-                                .padding(.vertical, 4)
-                            
-                            HStack {
-                                Text("Total")
-                                    .font(.system(size: 18, weight: .bold))
-                                    .foregroundColor(.white)
-                                Spacer()
-                                Text(String(format: "$%.2f", cartManager.total))
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(Color(hex: "3B82F6"))
-                            }
-                        }
-                        .padding(20)
-                        .background(Color(hex: "1E293B"))
-                        .cornerRadius(16)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                        )
-                        .padding(.horizontal, 20)
-                        
-                        // Checkout Button
-                        Button(action: onCheckout) {
-                            HStack {
-                                Text("Place Order")
-                                    .font(.system(size: 17, weight: .bold))
-                                
-                                Spacer()
-                                
-                                Text(String(format: "$%.2f", cartManager.total))
-                                    .font(.system(size: 17, weight: .bold))
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 18)
-                            .background(
-                                LinearGradient(
-                                    colors: [
-                                        Color(hex: "3B82F6"),
-                                        Color(hex: "2563EB")
-                                    ],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
+                                },
+                                onDelete: {
+                                    withAnimation {
+                                        cartManager.removeItem(item.id)
+                                    }
+                                }
                             )
-                            .cornerRadius(16)
-                            .shadow(color: Color(hex: "3B82F6").opacity(0.4), radius: 12, x: 0, y: 6)
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 16)
-                        .padding(.bottom, 100) // Clear space for the floating tab bar
                     }
-                    .background(Theme.background)
+                    .padding(20)
+                    .padding(.bottom, 16)
                 }
+                
+                // Order Summary & Checkout — pinned at the bottom
+                VStack(spacing: 0) {
+                    // Subtle top fade
+                    LinearGradient(
+                        colors: [Theme.background.opacity(0), Theme.background],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 20)
+                    
+                    // Summary Card
+                    VStack(spacing: 12) {
+                        HStack {
+                            Text("Subtotal")
+                                .font(.system(size: 15))
+                                .foregroundColor(Color.white.opacity(0.7))
+                            Spacer()
+                            Text(String(format: "$%.2f", cartManager.subtotal))
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundColor(.white)
+                        }
+                        
+                        HStack {
+                            Text("Tax (5%)")
+                                .font(.system(size: 15))
+                                .foregroundColor(Color.white.opacity(0.7))
+                            Spacer()
+                            Text(String(format: "$%.2f", cartManager.tax))
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundColor(.white)
+                        }
+                        
+                        Divider()
+                            .background(Color.white.opacity(0.1))
+                            .padding(.vertical, 4)
+                        
+                        HStack {
+                            Text("Total")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.white)
+                            Spacer()
+                            Text(String(format: "$%.2f", cartManager.total))
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(Color(hex: "3B82F6"))
+                        }
+                    }
+                    .padding(20)
+                    .background(Color(hex: "1E293B"))
+                    .cornerRadius(16)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                    )
+                    .padding(.horizontal, 20)
+                    
+                    // Checkout Button
+                    Button(action: onCheckout) {
+                        HStack {
+                            Text("Place Order")
+                                .font(.system(size: 17, weight: .bold))
+                            
+                            Spacer()
+                            
+                            Text(String(format: "$%.2f", cartManager.total))
+                                .font(.system(size: 17, weight: .bold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 18)
+                        .background(
+                            LinearGradient(
+                                colors: [
+                                    Color(hex: "3B82F6"),
+                                    Color(hex: "2563EB")
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(16)
+                        .shadow(color: Color(hex: "3B82F6").opacity(0.4), radius: 12, x: 0, y: 6)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .padding(.bottom, 100) // Clear space for the floating tab bar
+                }
+                .background(Theme.background)
             }
         }
         .background(Theme.background.ignoresSafeArea())
