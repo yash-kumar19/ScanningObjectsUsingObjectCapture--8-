@@ -167,7 +167,9 @@ struct RestaurantDetailsScreenV2: View {
                 hasActiveOrder: pendingOrderId != nil,
                 onViewOrders: {
                     showCartScreen = false
-                    showOrdersDetailsGlobal = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        showOrdersDetailsGlobal = true
+                    }
                 }
             )
         }
@@ -195,7 +197,9 @@ struct RestaurantDetailsScreenV2: View {
                     pendingConfirmState = nil
                     // Clear cart after checkout
                     cartManager.clear()
-                    showOrdersDetailsGlobal = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        showOrdersDetailsGlobal = true
+                    }
                 },
                 onDismiss: {
                     pendingOrderId = nil

@@ -171,7 +171,9 @@ struct HomeView: View {
                 onOrderPlaced: { orderId in
                     pendingOrderId = orderId
                     pendingConfirmState = nil  // dismisses this cover
-                    showOrdersDetailsGlobal = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        showOrdersDetailsGlobal = true
+                    }
                 },
                 onDismiss: {
                     pendingOrderId = nil
