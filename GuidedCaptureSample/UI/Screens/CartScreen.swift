@@ -14,66 +14,52 @@ struct CartScreen: View {
     var onCheckout: () -> Void
     var onViewOrderStatus: (() -> Void)?   // nil when no pending order
     
-    // Safe area helper — CartScreen is inside a ZStack without NavigationView,
-    // so we must manually account for the status bar.
-    private var safeAreaTopInset: CGFloat {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first?.windows.first?.safeAreaInsets.top ?? 44
-    }
-    
     var body: some View {
-        ZStack {
-            Theme.background.ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                // Header — extend background through the status bar
-                VStack(spacing: 0) {
-                    // Status bar spacer (filled with the same header color)
-                    Color(hex: "1E293B")
-                        .frame(height: safeAreaTopInset)
-                    
-                    HStack {
-                        Color.clear.frame(width: 40)   // balance the right button
-                        
-                        Spacer()
-                        
-                        Text("Cart")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(.white)
-                        
-                        Spacer()
-                        
-                        // Order Status shortcut — shown only when there is a recent order
-                        if let callback = onViewOrderStatus {
-                            Button(action: callback) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "clock.arrow.circlepath")
-                                        .font(.system(size: 12, weight: .semibold))
-                                    Text("Order")
-                                        .font(.system(size: 12, weight: .semibold))
-                                }
-                                .foregroundColor(Color(hex: "3B82F6"))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(Color(hex: "3B82F6").opacity(0.12))
-                                .clipShape(Capsule())
-                                .overlay(Capsule().stroke(Color(hex: "3B82F6").opacity(0.3), lineWidth: 1))
-                            }
-                        } else {
-                            Color.clear.frame(width: 40)
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Color.clear.frame(width: 40)
+                
+                Spacer()
+                
+                Text("Cart")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(.white)
+                
+                Spacer()
+                
+                // Order Status shortcut
+                if let callback = onViewOrderStatus {
+                    Button(action: callback) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "clock.arrow.circlepath")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text("Order")
+                                .font(.system(size: 12, weight: .semibold))
                         }
+                        .foregroundColor(Color(hex: "3B82F6"))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color(hex: "3B82F6").opacity(0.12))
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(Color(hex: "3B82F6").opacity(0.3), lineWidth: 1))
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 16)
+                } else {
+                    Color.clear.frame(width: 40)
                 }
-                .background(Color(hex: "1E293B"))
-                .overlay(
-                    Rectangle()
-                        .frame(height: 1)
-                        .foregroundColor(Color.white.opacity(0.08)),
-                    alignment: .bottom
-                )
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .background(
+                Color(hex: "1E293B")
+                    .ignoresSafeArea(.container, edges: .top)
+            )
+            .overlay(
+                Rectangle()
+                    .frame(height: 1)
+                    .foregroundColor(Color.white.opacity(0.08)),
+                alignment: .bottom
+            )
                 
                 if cartManager.isEmpty {
                     // Empty State — positioned naturally near the top
@@ -216,7 +202,7 @@ struct CartScreen: View {
                 }
             }
         }
-        .ignoresSafeArea(.all, edges: .top) // Let us handle safe area manually
+        .background(Theme.background.ignoresSafeArea())
     }
 }
 

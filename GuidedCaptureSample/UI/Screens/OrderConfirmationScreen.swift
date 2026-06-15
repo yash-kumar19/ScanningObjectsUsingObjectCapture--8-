@@ -27,8 +27,6 @@ struct OrderConfirmationScreen: View {
     // MARK: - Body
 
     var body: some View {
-        // Group + ignoresSafeArea fixes the gap that fullScreenCover's hidden
-        // navigation controller adds to ScrollView content insets.
         Group {
             if let order = placedOrder {
                 successView(order: order)
@@ -37,27 +35,14 @@ struct OrderConfirmationScreen: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Theme.background)
-        .ignoresSafeArea(.all)   // ← eliminates the gap; header padding handles safe area
+        .background(Theme.background.ignoresSafeArea())
         .alert("Order Failed", isPresented: $showError) {
             Button("OK", role: .cancel) {
-                isPlacingOrder = false   // Re-enable button on error
+                isPlacingOrder = false
             }
         } message: {
             Text(errorMessage)
         }
-    }
-
-    // Safe area helpers — needed because we use .ignoresSafeArea(.all)
-    private var safeAreaTopInset: CGFloat {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first?.windows.first?.safeAreaInsets.top ?? 44
-    }
-    private var safeAreaBottomInset: CGFloat {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first?.windows.first?.safeAreaInsets.bottom ?? 34
     }
 
     // MARK: - Confirm View
@@ -65,7 +50,7 @@ struct OrderConfirmationScreen: View {
     private var confirmView: some View {
         VStack(spacing: 0) {
 
-            // ── Header (manually handles safe area since we use ignoresSafeArea) ─
+            // ── Header ─────────────────────────────────────────────────
             HStack {
                 Button(action: { presentationMode.wrappedValue.dismiss() }) {
                     Image(systemName: "xmark")
@@ -83,9 +68,11 @@ struct OrderConfirmationScreen: View {
                 Color.clear.frame(width: 40)
             }
             .padding(.horizontal, 20)
-            .padding(.vertical, 16)
-            .padding(.top, safeAreaTopInset)   // ← manually compensate for status bar
-            .background(Color(hex: "1E293B"))
+            .padding(.vertical, 12)
+            .background(
+                Color(hex: "1E293B")
+                    .ignoresSafeArea(.container, edges: .top)
+            )
             .overlay(
                 Rectangle().frame(height: 1).foregroundColor(Color.white.opacity(0.08)),
                 alignment: .bottom
@@ -211,7 +198,7 @@ struct OrderConfirmationScreen: View {
                 }
                 .disabled(isPlacingOrder)
                 .padding(.horizontal, 20)
-                .padding(.bottom, safeAreaBottomInset + 8)   // ← above home indicator
+                .padding(.bottom, 16)
                 .padding(.top, 4)
                 .background(Theme.background)
             }
