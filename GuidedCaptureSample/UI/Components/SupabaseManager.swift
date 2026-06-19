@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import UIKit
 
 enum LoginIntent {
     case none
@@ -23,7 +24,7 @@ class SupabaseManager: ObservableObject {
     var accessToken: String? {
         didSet {
             if let token = accessToken {
-                scheduleRefreshTimer(for: token)
+                
             }
         }
     }
@@ -62,11 +63,11 @@ class SupabaseManager: ObservableObject {
         guard let token = accessToken else { return }
         
         // Save access token
-        UserDefaults.standard.set(token, forKey: accessTokenKey)
+        KeychainManager.shared.saveString(token, forKey: accessTokenKey)
         
         // Save refresh token if available
         if let rToken = refreshToken {
-            UserDefaults.standard.set(rToken, forKey: refreshTokenKey)
+            KeychainManager.shared.saveString(rToken, forKey: refreshTokenKey)
         }
         
         // Save user data if available
@@ -80,10 +81,10 @@ class SupabaseManager: ObservableObject {
     
     private func restoreSession() {
         // Restore refresh token first to be available when accessToken is set
-        self.refreshToken = UserDefaults.standard.string(forKey: refreshTokenKey)
+        self.refreshToken = KeychainManager.shared.readString(forKey: refreshTokenKey)
         
         // Restore access token
-        guard let token = UserDefaults.standard.string(forKey: accessTokenKey) else {
+        guard let token = KeychainManager.shared.readString(forKey: accessTokenKey) else {
             print("No saved session found")
             return
         }
@@ -130,8 +131,8 @@ class SupabaseManager: ObservableObject {
         refreshTimer?.invalidate()
         refreshTimer = nil
         
-        UserDefaults.standard.removeObject(forKey: accessTokenKey)
-        UserDefaults.standard.removeObject(forKey: refreshTokenKey)
+        KeychainManager.shared.delete(forKey: accessTokenKey)
+        KeychainManager.shared.delete(forKey: refreshTokenKey)
         UserDefaults.standard.removeObject(forKey: userDataKey)
         self.accessToken = nil
         self.refreshToken = nil
@@ -176,7 +177,7 @@ class SupabaseManager: ObservableObject {
         }
         
         if !isTokenExpired(token) {
-            scheduleRefreshTimer(for: token)
+            
             return token
         }
         
@@ -234,9 +235,6 @@ class SupabaseManager: ObservableObject {
         guard refreshToken != nil else { return }
         guard let expirationDate = getExpirationDate(from: token) else { return }
         
-        // Invalidate existing timer
-        refreshTimer?.invalidate()
-        
         let timeInterval = expirationDate.timeIntervalSince(Date()) - 300 // 5 minutes before expiration
         guard timeInterval > 0 else {
             // If already within 5 minutes, refresh immediately in background
@@ -246,9 +244,13 @@ class SupabaseManager: ObservableObject {
             return
         }
         
-        print("⏰ Scheduled token refresh in \(Int(timeInterval)) seconds")
-        
         DispatchQueue.main.async {
+            if let timer = self.refreshTimer, timer.isValid {
+                // Timer already scheduled
+                return
+            }
+            
+            print("⏰ Scheduled token refresh in \(Int(timeInterval)) seconds")
             self.refreshTimer = Timer.scheduledTimer(withTimeInterval: timeInterval, repeats: false) { [weak self] _ in
                 Task {
                     try? await self?.refreshSession()
@@ -509,6 +511,22 @@ class SupabaseManager: ObservableObject {
         return "\(SupabaseConfig.url)/storage/v1/object/public/\(path)"
     }
     
+    private func createThumbnail(from data: Data, maxDimension: CGFloat = 400) -> Data? {
+        guard let image = UIImage(data: data) else { return nil }
+        let size = image.size
+        let ratio = max(size.width, size.height) / maxDimension
+        if ratio <= 1.0 { return data }
+        
+        let newSize = CGSize(width: size.width / ratio, height: size.height / ratio)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1.0
+        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
+        let thumbImage = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
+        }
+        return thumbImage.jpegData(compressionQuality: 0.7)
+    }
+
     func uploadImage(data: Data, name: String) async throws -> String {
         let token = try await getValidAccessTokenOrRefresh()
         
@@ -537,43 +555,36 @@ class SupabaseManager: ObservableObject {
             print("Upload Image Error: \(httpResponse.statusCode) - \(message)")
             
             if httpResponse.statusCode == 401 || (httpResponse.statusCode == 400 && (message.contains("exp") || message.contains("token"))) {
-                print("🔄 Token expired or invalid (\(httpResponse.statusCode)). Logging out...")
                 await MainActor.run { self.logout() }
             }
-            
             throw SupabaseAPIError(statusCode: httpResponse.statusCode, message: message)
         }
+        
+        // --- Generate and upload Thumbnail asynchronously (fire and forget) ---
+        if let thumbData = createThumbnail(from: data) {
+            Task {
+                do {
+                    let thumbPath = "images/\(name)_thumb.jpg"
+                    let thumbUrl = SupabaseConfig.storageURL.appendingPathComponent("object").appendingPathComponent(thumbPath)
+                    var thumbRequest = URLRequest(url: thumbUrl)
+                    thumbRequest.httpMethod = "POST"
+                    thumbRequest.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                    thumbRequest.addValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+                    thumbRequest.addValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+                    _ = try await URLSession.shared.upload(for: thumbRequest, from: thumbData)
+                    print("✅ Generated and uploaded thumbnail: \(thumbPath)")
+                } catch {
+                    print("⚠️ Failed to upload thumbnail: \(error)")
+                }
+            }
+        }
+        // ----------------------------------------------------------------------
         
         return "\(SupabaseConfig.url)/storage/v1/object/public/\(path)"
     }
     
     // MARK: - Real-time Polling
     
-    private var timer: Timer?
-    
-    func startPolling() {
-        stopPolling()
-        // Poll every 10 seconds
-        timer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
-            Task {
-                await self?.refreshData()
-            }
-        }
-    }
-    
-    func stopPolling() {
-        timer?.invalidate()
-        timer = nil
-    }
-    
-    @MainActor
-    private func refreshData() async {
-        guard isAuthenticated else { return }
-        
-        // Post notifications that data updated, so views can refetch if they want
-        // Or we could have @Published properties here for global state
-        NotificationCenter.default.post(name: .supabaseDataDidUpdate, object: nil)
-    }
 }
 
 extension Notification.Name {
@@ -627,6 +638,8 @@ struct Dish: Codable, Identifiable {
     let is_active: Bool?
     let featured: Bool?
     let display_order: Int?
+    let intended_status: String?
+    let conversion_started_at: String?
     
     enum CodingKeys: String, CodingKey {
         case id, created_at, updated_at, restaurant_id, name, description, price, category
@@ -638,6 +651,8 @@ struct Dish: Codable, Identifiable {
         case display_order
         case model_file_size
         case polygon_count
+        case intended_status
+        case conversion_started_at
     }
 }
 
@@ -977,7 +992,42 @@ extension SupabaseManager {
             throw SupabaseAPIError(statusCode: httpResponse.statusCode, message: errorString)
         }
         
-        print("✅ Dish soft-deleted successfully (id: \(id))")
+    print("✅ Dish soft-deleted successfully (id: \(id))")
+    }
+    
+    func updateDishPostBackgroundUpload(dishId: String, modelURL: String, intendedStatus: String) async throws {
+        let token = try await getValidAccessTokenOrRefresh()
+        
+        let url = SupabaseConfig.databaseURL.appendingPathComponent("dishes")
+            .appending(queryItems: [URLQueryItem(name: "id", value: "eq.\(dishId)")])
+            
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.addValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        // Let the DB trigger handle updating `status` based on `intended_status`
+        // We only update model url, generation status, intended status, and timestamp.
+        let body: [String: Any] = [
+            "model_3d_url": modelURL,
+            "generation_status": "pending",
+            "intended_status": intendedStatus,
+            "conversion_started_at": ISO8601DateFormatter().string(from: Date())
+        ]
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        
+        if !(200...299).contains(httpResponse.statusCode) {
+            let errorString = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw SupabaseAPIError(statusCode: httpResponse.statusCode, message: errorString)
+        }
     }
     
     /// Update dish with partial data (only sends changed fields)
@@ -1121,7 +1171,7 @@ extension SupabaseManager {
         print("🔍 [Public API] Fetching dishes for restaurant: \(restaurantId)")
         print("🔍 [Public API] URL: \(url.absoluteString)")
         
-        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
+        var request = URLRequest(url: url, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 30)
         request.httpMethod = "GET"
         request.addValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -1992,5 +2042,68 @@ extension SupabaseManager {
         
         print("✅ Order created successfully: \(order.id)")
         return order
+    }
+}
+import Foundation
+import Security
+
+struct KeychainManager {
+    static let shared = KeychainManager()
+    
+    private init() {}
+    
+    @discardableResult
+    func save(_ data: Data, forKey key: String) -> Bool {
+        let query = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrAccount: key,
+            kSecValueData: data
+        ] as [String: Any]
+        
+        // Remove existing item to avoid duplicate errors
+        SecItemDelete(query as CFDictionary)
+        
+        let status = SecItemAdd(query as CFDictionary, nil)
+        return status == errSecSuccess
+    }
+    
+    func read(forKey key: String) -> Data? {
+        let query = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrAccount: key,
+            kSecReturnData: true,
+            kSecMatchLimit: kSecMatchLimitOne
+        ] as [String: Any]
+        
+        var dataTypeRef: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
+        
+        if status == errSecSuccess {
+            return dataTypeRef as? Data
+        }
+        return nil
+    }
+    
+    @discardableResult
+    func delete(forKey key: String) -> Bool {
+        let query = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrAccount: key
+        ] as [String: Any]
+        
+        let status = SecItemDelete(query as CFDictionary)
+        return status == errSecSuccess || status == errSecItemNotFound
+    }
+    
+    // Convenience String wrapper
+    @discardableResult
+    func saveString(_ string: String, forKey key: String) -> Bool {
+        guard let data = string.data(using: .utf8) else { return false }
+        return save(data, forKey: key)
+    }
+    
+    func readString(forKey key: String) -> String? {
+        guard let data = read(forKey: key) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 }

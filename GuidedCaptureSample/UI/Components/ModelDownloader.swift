@@ -32,6 +32,30 @@ class ModelDownloader: ObservableObject {
         
         // Create directory if it doesn't exist
         try? FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+        
+        cleanupOldModels()
+    }
+    
+    private func cleanupOldModels() {
+        DispatchQueue.global(qos: .background).async { [weak self] in
+            guard let self = self else { return }
+            let fileManager = FileManager.default
+            let expirationDate = Date().addingTimeInterval(-7 * 24 * 60 * 60)
+            
+            do {
+                let files = try fileManager.contentsOfDirectory(at: self.cacheDirectory, includingPropertiesForKeys: [.creationDateKey])
+                for file in files {
+                    if let attrs = try? fileManager.attributesOfItem(atPath: file.path),
+                       let creationDate = attrs[.creationDate] as? Date,
+                       creationDate < expirationDate {
+                        try? fileManager.removeItem(at: file)
+                        print("🗑️ Removed old cached model: \(file.lastPathComponent)")
+                    }
+                }
+            } catch {
+                print("⚠️ Failed to cleanup old models: \(error)")
+            }
+        }
     }
     
     /// Downloads a model from a remote URL and returns the local cached file URL

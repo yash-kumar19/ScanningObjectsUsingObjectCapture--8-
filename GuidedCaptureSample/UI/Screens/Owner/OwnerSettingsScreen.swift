@@ -85,9 +85,7 @@ struct OwnerSettingsScreen: View {
             Theme.background.ignoresSafeArea()
             
             if isLoading {
-                ProgressView("Loading settings...")
-                    .tint(.white)
-                    .foregroundColor(.white)
+                SettingsSkeleton()
             } else {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 32) {
@@ -182,10 +180,17 @@ struct OwnerSettingsScreen: View {
                                     Spacer()
                                     
                                     if !logoUrl.isEmpty {
-                                        AsyncImage(url: URL(string: logoUrl)) { image in
-                                            image.resizable().aspectRatio(contentMode: .fill)
-                                        } placeholder: {
-                                            ProgressView().tint(.white)
+                                        CachedAsyncImage(url: URL(string: logoUrl)) { phase in
+                                            switch phase {
+                                            case .empty:
+                                                ProgressView().tint(.white)
+                                            case .success(let image):
+                                                image.resizable().aspectRatio(contentMode: .fill)
+                                            case .failure:
+                                                Image(systemName: "photo").foregroundColor(.gray)
+                                            @unknown default:
+                                                EmptyView()
+                                            }
                                         }
                                         .frame(width: 40, height: 40)
                                         .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -220,10 +225,17 @@ struct OwnerSettingsScreen: View {
                                         HStack(spacing: 12) {
                                             ForEach(Array(galleryUrls.enumerated()), id: \.offset) { idx, url in
                                                 ZStack(alignment: .topTrailing) {
-                                                    AsyncImage(url: URL(string: url)) { image in
-                                                        image.resizable().aspectRatio(contentMode: .fill)
-                                                    } placeholder: {
-                                                        ProgressView().tint(.white)
+                                                    CachedAsyncImage(url: URL(string: url)) { phase in
+                                                        switch phase {
+                                                        case .empty:
+                                                            ProgressView().tint(.white)
+                                                        case .success(let image):
+                                                            image.resizable().aspectRatio(contentMode: .fill)
+                                                        case .failure:
+                                                            Image(systemName: "photo").foregroundColor(.gray)
+                                                        @unknown default:
+                                                            EmptyView()
+                                                        }
                                                     }
                                                     .frame(width: 80, height: 80)
                                                     .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -951,5 +963,79 @@ struct NotificationToggleRow: View {
             Spacer()
             CustomToggle(isOn: $isOn)
         }
+    }
+}
+
+// MARK: - Skeletons
+
+struct SettingsSkeleton: View {
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 32) {
+                // Header
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.white)
+                            .frame(width: 150, height: 40)
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.white)
+                            .frame(width: 250, height: 20)
+                    }
+                    Spacer()
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white)
+                        .frame(width: 80, height: 36)
+                        .padding(.bottom, 8)
+                }
+                .padding(.top, 24)
+                
+                // Sections
+                ForEach(0..<3, id: \.self) { _ in
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Section title
+                        HStack(spacing: 8) {
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.white)
+                                .frame(width: 24, height: 24)
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.white)
+                                .frame(width: 180, height: 20)
+                        }
+                        
+                        // Rows
+                        VStack(spacing: 0) {
+                            ForEach(0..<4, id: \.self) { i in
+                                HStack {
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(Color.white)
+                                        .frame(width: 20, height: 20)
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color.white)
+                                        .frame(width: 100, height: 16)
+                                    Spacer()
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color.white)
+                                        .frame(width: 80, height: 16)
+                                }
+                                .padding(16)
+                                
+                                if i < 3 {
+                                    Divider().background(Color.white.opacity(0.05)).padding(.leading, 48)
+                                }
+                            }
+                        }
+                        .background(Color(hex: "1e293b").opacity(0.4))
+                        .cornerRadius(20)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        )
+                    }
+                }
+            }
+            .padding(.horizontal, 24)
+        }
+        .skeleton(isLoading: true)
     }
 }

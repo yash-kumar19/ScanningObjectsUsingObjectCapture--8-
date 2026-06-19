@@ -17,7 +17,7 @@ struct DishCard: View {
             HStack(spacing: 16) {
                 // Image
                 ZStack {
-                    AsyncImage(url: URL(string: image)) { phase in
+                    CachedAsyncImage(url: URL(string: image)) { phase in
                         switch phase {
                         case .empty:
                             Rectangle().fill(Color.white.opacity(0.05))
@@ -144,3 +144,4 @@ struct DishCard: View {
         .buttonStyle(PlainButtonStyle())
     }
 }
+

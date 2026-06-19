@@ -11,11 +11,11 @@ struct RestaurantCard: View {
     let onClick: () -> Void
     
     var body: some View {
-        Button(action: onClick) {
+        Button(action: { onClick() }) {
             VStack(spacing: 0) {
                 // Image Header
                 ZStack(alignment: .topLeading) {
-                    AsyncImage(url: URL(string: image)) { phase in
+                    CachedAsyncImage(url: URL(string: image)) { phase in
                         if let image = phase.image {
                             image
                                 .resizable()

@@ -63,17 +63,17 @@ struct SearchScreen: View {
                     
                     // Filter Chips
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
+                        LazyHStack(spacing: 12) {
                             ForEach(cuisines, id: \.id) { cuisine in
                                 FilterChip(
                                     label: cuisine.label,
                                     isSelected: selectedCuisine == cuisine.id,
-                                    action: { selectedCuisine = cuisine.id },
+                                    action: { selectedCuisine = selectedCuisine == cuisine.id ? "all" : cuisine.id },
                                     icon: cuisine.icon
                                 )
                             }
                         }
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, 24)
                     }
                     .padding(.top, 20)
                     
@@ -146,7 +146,7 @@ struct DiscoverRestaurantCard: View {
                 // Image
                 ZStack(alignment: .topTrailing) {
                     // Restaurant image with fallback gradient
-                    AsyncImage(url: URL(string: logoURL ?? "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop")) { phase in
+                    CachedAsyncImage(url: URL(string: logoURL ?? "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop")) { phase in
                         switch phase {
                         case .empty:
                             // Loading placeholder

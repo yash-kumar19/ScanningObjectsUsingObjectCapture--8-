@@ -6,6 +6,7 @@ struct OwnerReservationsScreen: View {
     @State private var selectedDate = "all"
     @State private var reservations: [Reservation] = []
     @State private var isLoading = false
+    @StateObject private var pollingManager = OrderPollingManager()
     
     @ObservedObject private var supabase = SupabaseManager.shared
     
@@ -156,13 +157,12 @@ struct OwnerReservationsScreen: View {
         }
         .onAppear {
             loadData()
-            supabase.startPolling()
+            pollingManager.startPolling(interval: 10.0) {
+                loadData()
+            }
         }
         .onDisappear {
-            supabase.stopPolling()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .supabaseDataDidUpdate)) { _ in
-            loadData()
+            pollingManager.stopPolling()
         }
     }
     

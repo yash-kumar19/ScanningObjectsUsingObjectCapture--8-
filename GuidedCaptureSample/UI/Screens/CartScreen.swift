@@ -87,7 +87,7 @@ struct CartScreen: View {
             } else {
                 // Cart Items + Bottom Summary
                 ScrollView {
-                    VStack(spacing: 16) {
+                    LazyVStack(spacing: 16) {
                         ForEach(cartManager.items) { item in
                             CartItemRow(
                                 item: item,
@@ -219,7 +219,7 @@ struct CartItemRow: View {
     var body: some View {
         HStack(spacing: 16) {
             // Image
-            AsyncImage(url: URL(string: item.imageURL ?? "")) { phase in
+            CachedAsyncImage(url: URL(string: item.imageURL ?? "")) { phase in
                 switch phase {
                 case .empty:
                     Rectangle().fill(Color.white.opacity(0.05))

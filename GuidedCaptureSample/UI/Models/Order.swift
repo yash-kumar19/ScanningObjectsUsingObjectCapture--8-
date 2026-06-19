@@ -12,6 +12,7 @@ import Foundation
 struct Order: Decodable, Identifiable {
     let id: String  // UUID from Supabase
     let created_at: String  // ISO 8601 timestamp from Supabase
+    let updated_at: String? // Optional ISO 8601 timestamp
     let customer_id: String
     let restaurant_id: String
     let restaurant_name: String?  // SNAPSHOT for display (not live reference)
@@ -25,9 +26,9 @@ struct Order: Decodable, Identifiable {
     let customer_phone: String?   // E.164 format e.g. +919876543210
     let items: [OrderItem]?
     
-    // Display order number using UUID prefix (no global SERIAL needed)
+    // Display order number using UUID suffix (no global SERIAL needed)
     var displayOrderNumber: String {
-        "#\(id.prefix(6).uppercased())"
+        "#\(id.suffix(4).uppercased())"
     }
     
     // Local memberwise init — used after a successful RPC call so we never
@@ -40,14 +41,16 @@ struct Order: Decodable, Identifiable {
         subtotal: Double,
         tax: Double,
         total: Double,
-        specialNotes: String?,
-        customerName: String?,
-        customerPhone: String?,
-        items: [OrderItem]? = nil
+        specialNotes: String? = nil,
+        customerName: String? = nil,
+        customerPhone: String? = nil,
+        items: [OrderItem] = [],
+        updatedAt: String? = nil
     ) {
         self.id            = id
         self.created_at    = ISO8601DateFormatter().string(from: Date())
-        self.customer_id   = ""
+        self.updated_at    = updatedAt
+        self.customer_id   = "temp"
         self.restaurant_id = restaurantId
         self.restaurant_name = nil
         self.status        = status
@@ -59,10 +62,12 @@ struct Order: Decodable, Identifiable {
         self.customer_name = customerName
         self.customer_phone = customerPhone
         self.items         = items
-    }    
+    }
+    
     enum CodingKeys: String, CodingKey {
         case id
         case created_at
+        case updated_at
         case customer_id
         case restaurant_id
         case restaurant_name
@@ -110,6 +115,7 @@ struct Order: Decodable, Identifiable {
         
         self.customer_name = try container.decodeIfPresent(String.self, forKey: .customer_name)
         self.customer_phone = try container.decodeIfPresent(String.self, forKey: .customer_phone)
+        self.updated_at = try container.decodeIfPresent(String.self, forKey: .updated_at)
         self.items = try container.decodeIfPresent([OrderItem].self, forKey: .items)
     }
 }

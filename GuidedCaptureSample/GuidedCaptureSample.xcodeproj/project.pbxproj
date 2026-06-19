@@ -12,6 +12,12 @@
 		491296812F2DE47B00CD9DA9 /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 491296802F2DE47B00CD9DA9 /* QRScannerView.swift */; };
 		493BD2162F34876000D9E27B /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 493BD2152F34876000D9E27B /* AppConfig.swift */; };
 		495CD7742F35DB77000B30E1 /* CustomModelViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 495CD7732F35DB77000B30E1 /* CustomModelViewer.swift */; };
+
+		4961B87D2FE161DF002BBEB5 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4961B87C2FE161DF002BBEB5 /* NetworkMonitor.swift */; };
+		4961B87F2FE161EB002BBEB5 /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4961B87E2FE161EB002BBEB5 /* CachedAsyncImage.swift */; };
+		4961B8812FE161F6002BBEB5 /* BackgroundUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4961B8802FE161F6002BBEB5 /* BackgroundUploader.swift */; };
+		4961B8832FE16200002BBEB5 /* SupabaseConfig.swift.template in Resources */ = {isa = PBXBuildFile; fileRef = 4961B8822FE16200002BBEB5 /* SupabaseConfig.swift.template */; };
+		4961B8852FE16213002BBEB5 /* UploadQueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4961B8842FE16213002BBEB5 /* UploadQueueView.swift */; };
 		496C5B6E2F431873008B3E6E /* CartScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 496C5B6D2F431873008B3E6E /* CartScreen.swift */; };
 		4980388C2F20BE18007E5CC4 /* ModelDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4980388B2F20BE18007E5CC4 /* ModelDownloader.swift */; };
 		4980388E2F20BE20007E5CC4 /* ModelPreviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4980388D2F20BE20007E5CC4 /* ModelPreviewSheet.swift */; };
@@ -132,6 +138,12 @@
 		491296802F2DE47B00CD9DA9 /* QRScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScannerView.swift; sourceTree = "<group>"; };
 		493BD2152F34876000D9E27B /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		495CD7732F35DB77000B30E1 /* CustomModelViewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomModelViewer.swift; sourceTree = "<group>"; };
+
+		4961B87C2FE161DF002BBEB5 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
+		4961B87E2FE161EB002BBEB5 /* CachedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedAsyncImage.swift; sourceTree = "<group>"; };
+		4961B8802FE161F6002BBEB5 /* BackgroundUploader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundUploader.swift; sourceTree = "<group>"; };
+		4961B8822FE16200002BBEB5 /* SupabaseConfig.swift.template */ = {isa = PBXFileReference; lastKnownFileType = text; path = SupabaseConfig.swift.template; sourceTree = "<group>"; };
+		4961B8842FE16213002BBEB5 /* UploadQueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadQueueView.swift; sourceTree = "<group>"; };
 		496C5B6D2F431873008B3E6E /* CartScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CartScreen.swift; sourceTree = "<group>"; };
 		4980388B2F20BE18007E5CC4 /* ModelDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDownloader.swift; sourceTree = "<group>"; };
 		4980388D2F20BE20007E5CC4 /* ModelPreviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPreviewSheet.swift; sourceTree = "<group>"; };
@@ -263,6 +275,11 @@
 		49BFD3952EF9B6C30076E189 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				4961B8842FE16213002BBEB5 /* UploadQueueView.swift */,
+				4961B8822FE16200002BBEB5 /* SupabaseConfig.swift.template */,
+				4961B8802FE161F6002BBEB5 /* BackgroundUploader.swift */,
+				4961B87E2FE161EB002BBEB5 /* CachedAsyncImage.swift */,
+				4961B87C2FE161DF002BBEB5 /* NetworkMonitor.swift */,
 				49B449162F43110700AEA79F /* ToastView.swift */,
 				49B449142F4310F100AEA79F /* FloatingCartBar.swift */,
 				49B449102F43103700AEA79F /* ToastManager.swift */,
@@ -579,6 +596,7 @@
 				64A07DC62BFE7CCB00FDE113 /* Preview Assets.xcassets in Resources */,
 				64C12FB52BFEB1EB002D3E7E /* ScanTutorial-iPad-Area.mp4 in Resources */,
 				64C12FBD2BFEB1EB002D3E7E /* ScanTutorial-iPhone-Area.mp4 in Resources */,
+				4961B8832FE16200002BBEB5 /* SupabaseConfig.swift.template in Resources */,
 				64F43E522BFEB06E0069D4F3 /* Assets.xcassets in Resources */,
 				64C12FCA2BFEB4A4002D3E7E /* ScanPasses-iPhone-FixedHeight-3.mp4 in Resources */,
 				64C12FCB2BFEB4A4002D3E7E /* ScanPasses-iPhone-FixedHeight-unflippable-high.mp4 in Resources */,
@@ -616,6 +634,7 @@
 				49AA11072F5B00040001AABB /* OrderConfirmationScreen.swift in Sources */,
 				49BFD3C22EF9B6C30076E189 /* RoleSelectionScreen.swift in Sources */,
 				49BFD3C32EF9B6C30076E189 /* MenuScreen.swift in Sources */,
+				4961B8812FE161F6002BBEB5 /* BackgroundUploader.swift in Sources */,
 				49BFD3C42EF9B6C30076E189 /* MenuViewerScreen.swift in Sources */,
 				49BFD3C62EF9B6C30076E189 /* RestaurantOnboardingScreen.swift in Sources */,
 				49BFD3C72EF9B6C30076E189 /* SkeletonModifier.swift in Sources */,
@@ -626,6 +645,7 @@
 				49BFD3CB2EF9B6C30076E189 /* Restaurant.swift in Sources */,
 				49BFD3CC2EF9B6C30076E189 /* LoginButton.swift in Sources */,
 				49BFD3CD2EF9B6C30076E189 /* OwnerSettingsScreen.swift in Sources */,
+				4961B87D2FE161DF002BBEB5 /* NetworkMonitor.swift in Sources */,
 				49BFD3CE2EF9B6C30076E189 /* RootView.swift in Sources */,
 				49BFD3CF2EF9B6C30076E189 /* CaptureSetupScreen.swift in Sources */,
 				49B4490F2F43101900AEA79F /* CartItem.swift in Sources */,
@@ -634,6 +654,7 @@
 				4998814B2EFE73E70026C844 /* ObjectCaptureContainer.swift in Sources */,
 				49BFD3D22EF9B6C30076E189 /* AddEditDishScreen.swift in Sources */,
 				49BFD3D32EF9B6C30076E189 /* OnboardingSuccessScreen.swift in Sources */,
+				4961B87F2FE161EB002BBEB5 /* CachedAsyncImage.swift in Sources */,
 				4990732C2F6D379800E1092A /* RestaurantPortalView.swift in Sources */,
 				49BFD3D42EF9B6C30076E189 /* GlowBackground.swift in Sources */,
 				49BFD3D52EF9B6C30076E189 /* GeneratedModelsScreen.swift in Sources */,
@@ -649,6 +670,7 @@
 				49BFD3DD2EF9B6C30076E189 /* BottomTabBar.swift in Sources */,
 				49BFD3DE2EF9B6C30076E189 /* ScaleButtonStyle.swift in Sources */,
 				49BFD3DF2EF9B6C30076E189 /* SupabaseConfig.swift in Sources */,
+				4961B8852FE16213002BBEB5 /* UploadQueueView.swift in Sources */,
 				49BFD3E02EF9B6C30076E189 /* GhostButton.swift in Sources */,
 				499881492EFE73D60026C844 /* LiquidGlassBackground.swift in Sources */,
 				4912967D2F2DE0C900CD9DA9 /* QRMenuView.swift in Sources */,

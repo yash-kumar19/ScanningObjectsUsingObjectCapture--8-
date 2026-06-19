@@ -340,7 +340,7 @@ struct RestaurantDetailsScreenV2: View {
             if urls.count > 1 {
                 TabView(selection: $activeImageIndex) {
                     ForEach(0..<urls.count, id: \.self) { index in
-                        AsyncImage(url: URL(string: urls[index])) { phase in
+                        CachedAsyncImage(url: URL(string: urls[index])) { phase in
                             switch phase {
                             case .success(let image):
                                 image.resizable().aspectRatio(contentMode: .fill)
@@ -365,7 +365,7 @@ struct RestaurantDetailsScreenV2: View {
                     }
                 }
             } else if urls.count == 1, let firstUrl = urls.first {
-                AsyncImage(url: URL(string: firstUrl)) { phase in
+                CachedAsyncImage(url: URL(string: firstUrl)) { phase in
                     switch phase {
                     case .success(let image):
                         image.resizable().aspectRatio(contentMode: .fill)
@@ -378,7 +378,7 @@ struct RestaurantDetailsScreenV2: View {
                 .frame(height: 280)
                 .clipped()
             } else {
-                AsyncImage(url: URL(string: displayedRestaurant.logo_url ?? "https://images.unsplash.com/photo-1559339352-11d035aa65de")) { phase in
+                CachedAsyncImage(url: URL(string: displayedRestaurant.logo_url ?? "https://images.unsplash.com/photo-1559339352-11d035aa65de")) { phase in
                     switch phase {
                     case .success(let image):
                         image.resizable().aspectRatio(contentMode: .fill)
@@ -495,7 +495,7 @@ struct RestaurantDetailsScreenV2: View {
         Group {
             if !dishes.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
+                    LazyHStack(spacing: 12) {
                         ForEach(categories, id: \.self) { category in
                             Button(action: {
                                 withAnimation {
@@ -562,7 +562,7 @@ struct RestaurantDetailsScreenV2: View {
                 }
                 .padding(.vertical, 40)
             } else {
-                VStack(spacing: 16) {
+                LazyVStack(spacing: 16) {
                     ForEach(filteredDishes) { dish in
                         DishCard(
                             id: dish.id,

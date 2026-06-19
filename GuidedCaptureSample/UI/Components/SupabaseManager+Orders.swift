@@ -151,7 +151,7 @@ extension SupabaseManager {
     }
     
     /// Fetch restaurant's orders (for owners) — includes order_items joined
-    func fetchRestaurantOrders(restaurantId: String, startDate: Date? = nil) async throws -> [Order] {
+    func fetchRestaurantOrders(restaurantId: String, startDate: Date? = nil, limit: Int? = nil, offset: Int? = nil) async throws -> [Order] {
         let token = try await getValidAccessTokenOrRefresh()
         
         var queryItems = [
@@ -164,6 +164,14 @@ extension SupabaseManager {
             let formatter = ISO8601DateFormatter()
             let dateString = formatter.string(from: startDate)
             queryItems.append(URLQueryItem(name: "created_at", value: "gte.\(dateString)"))
+        }
+        
+        if let limit = limit {
+            queryItems.append(URLQueryItem(name: "limit", value: "\(limit)"))
+        }
+        
+        if let offset = offset {
+            queryItems.append(URLQueryItem(name: "offset", value: "\(offset)"))
         }
         
         let baseURL = SupabaseConfig.databaseURL.appendingPathComponent("orders")
@@ -187,6 +195,70 @@ extension SupabaseManager {
                 let body = String(data: data, encoding: .utf8) ?? ""
                 print("❌ fetchRestaurantOrders failed with status \(httpResponse.statusCode): \(body)")
             }
+            throw URLError(.badServerResponse)
+        }
+        
+        return try JSONDecoder().decode([Order].self, from: data)
+    }
+    
+    /// Fetch dashboard metrics strictly optimized
+    func fetchDashboardOrders(restaurantId: String, startDate: Date) async throws -> [Order] {
+        let token = try await getValidAccessTokenOrRefresh()
+        
+        let formatter = ISO8601DateFormatter()
+        let dateString = formatter.string(from: startDate)
+        
+        let queryItems = [
+            URLQueryItem(name: "restaurant_id", value: "eq.\(restaurantId)"),
+            URLQueryItem(name: "created_at", value: "gte.\(dateString)"),
+            URLQueryItem(name: "select", value: "id,status,total,created_at")
+        ]
+        
+        let baseURL = SupabaseConfig.databaseURL.appendingPathComponent("orders")
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: true)
+        components?.queryItems = queryItems
+        guard let url = components?.url else { throw URLError(.badURL) }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.addValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        
+        return try JSONDecoder().decode([Order].self, from: data)
+    }
+    
+    /// Fetch strictly delta updates since last poll
+    func fetchUpdatedOrders(restaurantId: String, since date: Date) async throws -> [Order] {
+        let token = try await getValidAccessTokenOrRefresh()
+        
+        let formatter = ISO8601DateFormatter()
+        let dateString = formatter.string(from: date)
+        
+        let queryItems = [
+            URLQueryItem(name: "restaurant_id", value: "eq.\(restaurantId)"),
+            URLQueryItem(name: "updated_at", value: "gt.\(dateString)"),
+            URLQueryItem(name: "select", value: "*,items:order_items(*)")
+        ]
+        
+        let baseURL = SupabaseConfig.databaseURL.appendingPathComponent("orders")
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: true)
+        components?.queryItems = queryItems
+        guard let url = components?.url else { throw URLError(.badURL) }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.addValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw URLError(.badServerResponse)
         }
         

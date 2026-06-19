@@ -8,30 +8,35 @@ import SwiftUI
 // MARK: - Owner Orders Screen
 
 struct OwnerOrdersScreen: View {
-    @State private var selectedTab: OrderTab = .new
+    @State private var selectedTab: OrderTab = .live
     @State private var orders: [Order] = []
     @State private var isLoading = false
     @State private var selectedOrder: Order? = nil
-    @State private var pollingTimer: Timer? = nil
+    @StateObject private var pollingManager = OrderPollingManager()
     @State private var liveDot = false
+    @State private var isLoadingMore = false
+    @State private var lastPollTime: Date? = nil
+    @State private var currentOffset = 0
+    @State private var hasMoreOrders = true
+    @State private var fetchTask: Task<Void, Never>? = nil
 
     @ObservedObject private var supabase = SupabaseManager.shared
 
     enum OrderTab: String, CaseIterable {
-        case new = "New"
-        case accepted = "Accepted"
+        case live = "Live Orders"
+        case completed = "History"
     }
 
-    var newOrders: [Order] {
-        orders.filter { $0.status == .received || $0.status == .placed }
+    var liveOrders: [Order] {
+        orders.filter { $0.status == .received || $0.status == .placed || $0.status == .preparing || $0.status == .ready || $0.status == .confirmed || $0.status == .accepted }
     }
 
-    var acceptedOrders: [Order] {
-        orders.filter { $0.status == .preparing || $0.status == .ready || $0.status == .confirmed || $0.status == .accepted }
+    var completedOrders: [Order] {
+        orders.filter { $0.status == .completed || $0.status == .cancelled }
     }
 
     var displayedOrders: [Order] {
-        selectedTab == .new ? newOrders : acceptedOrders
+        selectedTab == .live ? liveOrders : completedOrders
     }
 
     var body: some View {
@@ -71,24 +76,29 @@ struct OwnerOrdersScreen: View {
                 // Segmented Control
                 OwnerOrderSegmentedControl(
                     selectedTab: $selectedTab,
-                    newCount: newOrders.count,
-                    acceptedCount: acceptedOrders.count
+                    liveCount: liveOrders.count
                 )
                 .padding(.horizontal, 20)
                 .padding(.bottom, 16)
 
                 // Order List
                 if isLoading && orders.isEmpty {
-                    Spacer()
-                    ProgressView().tint(.white)
-                    Spacer()
+                    ScrollView(showsIndicators: false) {
+                        LazyVStack(spacing: 14) {
+                            ForEach(0..<4, id: \.self) { _ in
+                                OrderCardSkeleton()
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 4)
+                    }
                 } else if displayedOrders.isEmpty {
                     Spacer()
                     VStack(spacing: 12) {
-                        Image(systemName: selectedTab == .new ? "tray" : "checkmark.circle")
+                        Image(systemName: selectedTab == .live ? "tray" : "clock.arrow.circlepath")
                             .font(.system(size: 44))
                             .foregroundColor(.white.opacity(0.25))
-                        Text(selectedTab == .new ? "No new orders" : "No accepted orders")
+                        Text(selectedTab == .live ? "No live orders" : "No history available")
                             .font(.system(size: 16))
                             .foregroundColor(.white.opacity(0.5))
                     }
@@ -99,14 +109,21 @@ struct OwnerOrdersScreen: View {
                             ForEach(displayedOrders) { order in
                                 OwnerOrderCard(
                                     order: order,
-                                    isNew: selectedTab == .new,
                                     onAccept: {
                                         updateStatus(order, to: .confirmed)
+                                    },
+                                    onComplete: {
+                                        updateStatus(order, to: .completed)
                                     },
                                     onViewDetail: {
                                         selectedOrder = order
                                     }
                                 )
+                                .onAppear {
+                                    if order.id == displayedOrders.last?.id {
+                                        loadNextPage()
+                                    }
+                                }
                             }
                             // Bottom padding for tab bar
                             Spacer().frame(height: 110)
@@ -119,11 +136,13 @@ struct OwnerOrdersScreen: View {
         }
         .onAppear {
             liveDot = true
-            loadOrders()
-            startPolling()
+            loadOrders(isInitial: true)
+            pollingManager.startPolling(interval: 5.0) {
+                pollUpdatedOrders()
+            }
         }
         .onDisappear {
-            stopPolling()
+            pollingManager.stopPolling()
         }
         .sheet(item: $selectedOrder) { order in
             OwnerOrderDetailSheet(
@@ -137,33 +156,99 @@ struct OwnerOrdersScreen: View {
 
     // MARK: - Private
 
-    private func loadOrders() {
+    private func loadOrders(isInitial: Bool = false) {
         guard let restaurantId = supabase.currentUser?.id else { return }
+        
+        if isInitial {
+            currentOffset = 0
+            hasMoreOrders = true
+        }
+        
         if orders.isEmpty { isLoading = true }
-        Task {
+        
+        fetchTask?.cancel()
+        fetchTask = Task {
             do {
-                let fetched = try await supabase.fetchRestaurantOrders(restaurantId: restaurantId)
+                let fetched = try await supabase.fetchRestaurantOrders(restaurantId: restaurantId, limit: 50, offset: currentOffset)
+                
+                // Deduplication via cancellation check
+                if Task.isCancelled { return }
+                
                 await MainActor.run {
-                    self.orders = fetched
+                    if isInitial {
+                        self.orders = fetched
+                        
+                        // Initialize lastPollTime safely from the returned payload
+                        let formatter = ISO8601DateFormatter()
+                        if let maxDate = fetched.compactMap({ $0.updated_at }).compactMap({ formatter.date(from: $0) }).max() {
+                            self.lastPollTime = maxDate
+                        } else {
+                            self.lastPollTime = Date()
+                        }
+                    } else {
+                        // Append to existing orders
+                        self.orders.append(contentsOf: fetched)
+                    }
+                    
+                    self.hasMoreOrders = fetched.count == 50
                     self.isLoading = false
                 }
             } catch {
+                if Task.isCancelled { return }
                 await MainActor.run { self.isLoading = false }
                 print("❌ [OwnerOrders] Error fetching: \(error)")
             }
         }
     }
-
-    private func startPolling() {
-        stopPolling()
-        pollingTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
-            loadOrders()
+    
+    private func loadNextPage() {
+        guard !isLoadingMore && hasMoreOrders else { return }
+        isLoadingMore = true
+        currentOffset += 50
+        
+        Task {
+            await loadOrders(isInitial: false)
+            await MainActor.run { self.isLoadingMore = false }
         }
     }
-
-    private func stopPolling() {
-        pollingTimer?.invalidate()
-        pollingTimer = nil
+    
+    private func pollUpdatedOrders() {
+        guard let restaurantId = supabase.currentUser?.id, let lastPoll = lastPollTime else { return }
+        
+        Task {
+            do {
+                let updated = try await supabase.fetchUpdatedOrders(restaurantId: restaurantId, since: lastPoll)
+                guard !updated.isEmpty else { return }
+                
+                await MainActor.run {
+                    // Merge updates into the main list
+                    var newOrders = self.orders
+                    for order in updated {
+                        if let idx = newOrders.firstIndex(where: { $0.id == order.id }) {
+                            newOrders[idx] = order
+                        } else {
+                            newOrders.insert(order, at: 0) // New order
+                        }
+                    }
+                    
+                    // Sort by created_at desc
+                    let formatter = ISO8601DateFormatter()
+                    newOrders.sort {
+                        let d1 = formatter.date(from: $0.created_at) ?? Date.distantPast
+                        let d2 = formatter.date(from: $1.created_at) ?? Date.distantPast
+                        return d1 > d2
+                    }
+                    
+                    self.orders = newOrders
+                    
+                    if let maxDate = updated.compactMap({ $0.updated_at }).compactMap({ formatter.date(from: $0) }).max() {
+                        self.lastPollTime = maxDate
+                    }
+                }
+            } catch {
+                print("❌ [OwnerOrders] Error polling delta: \(error)")
+            }
+        }
     }
 
     private func updateStatus(_ order: Order, to status: OrderStatus) {
@@ -187,14 +272,12 @@ struct OwnerOrdersScreen: View {
 
 struct OwnerOrderSegmentedControl: View {
     @Binding var selectedTab: OwnerOrdersScreen.OrderTab
-    let newCount: Int
-    let acceptedCount: Int
+    let liveCount: Int
 
     var body: some View {
         HStack(spacing: 0) {
             ForEach(OwnerOrdersScreen.OrderTab.allCases, id: \.self) { tab in
                 let isSelected = selectedTab == tab
-                let count = tab == .new ? newCount : acceptedCount
 
                 Button {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
@@ -205,9 +288,14 @@ struct OwnerOrderSegmentedControl: View {
                         Text(tab.rawValue)
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(isSelected ? .white : .white.opacity(0.5))
-                        Text("(\(count))")
-                            .font(.system(size: 13, weight: .regular))
-                            .foregroundColor(isSelected ? .white.opacity(0.8) : .white.opacity(0.35))
+                        if tab == .live {
+                            Text("(\(liveCount))")
+                                .font(.system(size: 13, weight: .regular))
+                                .foregroundColor(isSelected ? .white.opacity(0.8) : .white.opacity(0.35))
+                        } else {
+                            Text(" ")
+                                .font(.system(size: 13, weight: .regular))
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
@@ -235,8 +323,8 @@ struct OwnerOrderSegmentedControl: View {
 
 struct OwnerOrderCard: View {
     let order: Order
-    let isNew: Bool
     var onAccept: () -> Void
+    var onComplete: () -> Void
     var onViewDetail: () -> Void
 
     var timeAgo: String {
@@ -262,6 +350,14 @@ struct OwnerOrderCard: View {
         max(0, (order.items?.count ?? 0) - 2)
     }
 
+    var isPendingOrReceived: Bool {
+        order.status == .placed || order.status == .received || order.status == .pending
+    }
+
+    var isAcceptedActive: Bool {
+        order.status == .confirmed || order.status == .accepted || order.status == .preparing || order.status == .ready
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             // Top row: order number, time, payment badge
@@ -280,15 +376,8 @@ struct OwnerOrderCard: View {
                         .foregroundColor(.white.opacity(0.5))
                 }
                 Spacer()
-                // Payment method badge
-                Text(order.payment_method == .cash ? "CASH" : order.payment_method.rawValue.uppercased())
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(Color(hex: "facc15"))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color(hex: "facc15").opacity(0.12))
-                    .clipShape(Capsule())
-                    .overlay(Capsule().stroke(Color(hex: "facc15").opacity(0.35), lineWidth: 1))
+                // Status or Payment badge
+                OrderStatusBadge(status: order.status)
             }
 
             // Item count + total
@@ -322,9 +411,13 @@ struct OwnerOrderCard: View {
             }
 
             // Action buttons
-            if isNew {
-                Button(action: onAccept) {
-                    Text("Accept Order")
+            VStack(spacing: 12) {
+                if isPendingOrReceived {
+                    Button(action: onAccept) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.circle.fill")
+                            Text("Accept Order")
+                        }
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -333,27 +426,34 @@ struct OwnerOrderCard: View {
                             LinearGradient(colors: [Color(hex: "2b7fff"), Color(hex: "1a5fd9")], startPoint: .leading, endPoint: .trailing)
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                } else if isAcceptedActive {
+                    Button(action: onComplete) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.seal.fill")
+                            Text("Mark Completed")
+                        }
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            LinearGradient(colors: [Color(hex: "22c55e"), Color(hex: "16a34a")], startPoint: .leading, endPoint: .trailing)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
 
                 Button(action: onViewDetail) {
-                    Text("View Order →")
+                    Text("View Details →")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.white.opacity(0.55))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
                 }
                 .buttonStyle(.plain)
-            } else {
-                HStack {
-                    Spacer()
-                    Button(action: onViewDetail) {
-                        Text("View Details →")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.white.opacity(0.55))
-                    }
-                    .buttonStyle(.plain)
-                }
             }
         }
         .padding(16)
@@ -636,7 +736,7 @@ struct OwnerOrderDetailSheet: View {
                                     .font(.system(size: 10, weight: .semibold))
                                     .foregroundColor(.white.opacity(0.4))
                                     .kerning(0.5)
-                                Text(order.payment_method.displayName)
+                                    Text(order.payment_method.rawValue)
                                     .font(.system(size: 14, weight: .medium))
                                     .foregroundColor(.white.opacity(0.85))
                             }
@@ -719,6 +819,44 @@ struct OwnerOrderDetailSheet: View {
                 .padding(.horizontal, 20)
             }
         }
+    }
+}
+
+// MARK: - Skeletons
+
+struct OrderCardSkeleton: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.white)
+                    .frame(width: 60, height: 16)
+                Spacer()
+                Capsule()
+                    .fill(Color.white)
+                    .frame(width: 80, height: 24)
+            }
+            HStack {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.white)
+                    .frame(width: 100, height: 20)
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.white)
+                    .frame(width: 150, height: 14)
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.white)
+                    .frame(width: 120, height: 14)
+            }
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.white)
+                .frame(height: 50)
+        }
+        .padding(16)
+        .background(Color(hex: "1e293b"))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .skeleton(isLoading: true)
     }
 }
 

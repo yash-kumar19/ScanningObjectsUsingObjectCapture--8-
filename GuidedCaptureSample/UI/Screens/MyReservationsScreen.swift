@@ -4,6 +4,7 @@ struct MyReservationsScreen: View {
     @State private var activeTab: ReservationTab = .upcoming
     @State private var reservations: [Reservation] = []
     @State private var isLoading = false
+    @StateObject private var pollingManager = OrderPollingManager()
     
     @ObservedObject private var supabase = SupabaseManager.shared
     
@@ -77,13 +78,12 @@ struct MyReservationsScreen: View {
         }
         .onAppear {
             loadData()
-            supabase.startPolling()
+            pollingManager.startPolling(interval: 10.0) {
+                loadData()
+            }
         }
         .onDisappear {
-            supabase.stopPolling()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .supabaseDataDidUpdate)) { _ in
-            loadData()
+            pollingManager.stopPolling()
         }
     }
     
@@ -173,7 +173,7 @@ struct MyReservationsScreen: View {
     
     // MARK: - Upcoming Section
     private var upcomingSection: some View {
-        VStack(spacing: 16) {
+        LazyVStack(spacing: 16) {
             ForEach(upcomingReservations) { reservation in
                 ReservationCard(reservation: reservation)
             }
@@ -183,7 +183,7 @@ struct MyReservationsScreen: View {
     
     // MARK: - History Section
     private var historySection: some View {
-        VStack(spacing: 16) {
+        LazyVStack(spacing: 16) {
             ForEach(pastReservations) { reservation in
                 // Reusing ReservationCard for history for now, slightly different look if needed
                  ReservationCard(reservation: reservation, isPast: true)
@@ -282,7 +282,7 @@ struct ReservationCard: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
                 // Restaurant Image
-                AsyncImage(url: imageURL) { phase in
+                CachedAsyncImage(url: imageURL) { phase in
                     switch phase {
                     case .success(let image):
                         image

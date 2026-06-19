@@ -16,7 +16,7 @@ struct MenuDishCard: View {
             // Main Content
             HStack(alignment: .top, spacing: 16) {
                 // Image
-                AsyncImage(url: URL(string: dish.thumbnail_url ?? "")) { phase in
+                CachedAsyncImage(url: URL(string: dish.thumbnail_url ?? "")) { phase in
                     switch phase {
                     case .empty:
                         Rectangle()
@@ -153,6 +153,70 @@ struct MenuDishCard: View {
                 .stroke(Color.white.opacity(0.1), lineWidth: 1)
         )
         .shadow(color: Color(hex: "2b7fff").opacity(0.15), radius: 32, x: 0, y: 8)
+    }
+}
+
+struct MenuDishCardSkeleton: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 16) {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.white)
+                    .frame(width: 80, height: 80)
+                
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.white)
+                            .frame(width: 120, height: 20)
+                        Spacer()
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.white)
+                            .frame(width: 32, height: 32)
+                    }
+                    
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.white)
+                        .frame(width: 180, height: 16)
+                    
+                    HStack(spacing: 10) {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.white)
+                            .frame(width: 60, height: 22)
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.white)
+                            .frame(width: 50, height: 16)
+                    }
+                    .padding(.top, 4)
+                }
+            }
+            .padding(16)
+            
+            Rectangle()
+                .fill(Color.white.opacity(0.08))
+                .frame(height: 1)
+                .padding(.horizontal, 16)
+                
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.white)
+                    .frame(maxWidth: .infinity, minHeight: 40, maxHeight: 40)
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.white)
+                    .frame(maxWidth: .infinity, minHeight: 40, maxHeight: 40)
+            }
+            .padding(16)
+            .padding(.top, -4)
+        }
+        .background(
+            Color(hex: "1e293b"),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white, lineWidth: 1)
+        )
+        .skeleton(isLoading: true)
     }
 }
 
@@ -302,11 +366,20 @@ struct OwnerMenuScreen: View {
                         }
                     }
                     
+                    if !isLoading {
+                        UploadQueueView(dishes: dishes) { dish in
+                            Task {
+                                try? await SupabaseManager.shared.updateDishPartial(id: dish.id, generationStatus: "pending")
+                                await loadDishes()
+                            }
+                        }
+                    }
+                    
                     // Dishes List
-                    if isLoading {
-                        ProgressView()
-                            .tint(.white)
-                            .padding(.top, 40)
+                    if isLoading && dishes.isEmpty {
+                        ForEach(0..<4, id: \.self) { _ in
+                            MenuDishCardSkeleton()
+                        }
                     } else if filteredDishes.isEmpty {
                         VStack(spacing: 16) {
                             Image(systemName: "fork.knife.circle")

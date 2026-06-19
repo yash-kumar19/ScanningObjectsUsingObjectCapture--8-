@@ -39,6 +39,10 @@ struct AddEditDishScreen: View {
     @State private var showError = false
     @State private var showModelPreview = false
     
+    // Cellular warning
+    @State private var showCellularWarning = false
+    @State private var pendingSaveIgnoreCellular = false
+    
     // Constants
     let categories = ["Starters", "Mains", "Desserts", "Beverages", "Sides"]
     
@@ -156,10 +160,6 @@ struct AddEditDishScreen: View {
                 .background(Color(hex: "0F172A"))
             }
         }
-        .onChange(of: appModel.uploadState) { _, state in
-            // React to upload state changes if needed (e.g. logging)
-            print("AddEditDishScreen observed upload state change: \(state)")
-        }
         .onAppear {
             // Pre-populate if editing existing dish
             if let dish = existingDish {
@@ -234,6 +234,15 @@ struct AddEditDishScreen: View {
                      showModelPreview = false
                  }
              )
+        }
+        .alert("Cellular Data Warning", isPresented: $showCellularWarning) {
+            Button("Cancel", role: .cancel) { }
+            Button("Continue") {
+                pendingSaveIgnoreCellular = true
+                saveDish()
+            }
+        } message: {
+            Text("This upload is over 25MB. Continue using mobile data?")
         }
     }
     
@@ -440,21 +449,7 @@ struct AddEditDishScreen: View {
                  }
                  
                  VStack(spacing: 8) {
-                     if case .completed = appModel.uploadState {
-                         Text("Model Ready")
-                             .font(.headline)
-                             .foregroundColor(.white)
-                         Text("Your 3D model has been processed and is ready to view.")
-                             .font(.caption)
-                             .foregroundColor(.gray)
-                             .multilineTextAlignment(.center)
-                     } else if case .uploading = appModel.uploadState {
-                         Text("Processing...")
-                             .font(.headline)
-                             .foregroundColor(.white)
-                         ProgressView()
-                             .tint(.white)
-                     } else if appModel.localModelURL != nil || modelURL != nil {
+                     if appModel.localModelURL != nil || modelURL != nil {
                           Text("Capture Complete")
                              .font(.headline)
                              .foregroundColor(.white)
@@ -538,6 +533,14 @@ struct AddEditDishScreen: View {
             }
         }
         
+        if !pendingSaveIgnoreCellular, let url = appModel.localModelURL ?? modelURL, NetworkMonitor.shared.isCellular {
+            if let attr = try? FileManager.default.attributesOfItem(atPath: url.path),
+               let size = attr[.size] as? Int64, size > 25 * 1024 * 1024 {
+                showCellularWarning = true
+                return
+            }
+        }
+        
         isSaving = true
         
         Task {
@@ -566,135 +569,102 @@ struct AddEditDishScreen: View {
     
     // MARK: - Edit Existing Dish
     private func performEdit(dish: Dish) async throws {
-        // 1. Upload new image only if user replaced it
         var finalImageURL: String? = nil
         if userReplacedImage, let imageData = selectedImageData {
             let imageName = UUID().uuidString
             finalImageURL = try await SupabaseManager.shared.uploadImage(data: imageData, name: imageName)
-            print("✅ New image uploaded: \(finalImageURL ?? "nil")")
-        } else {
-            // Keep existing image
-            finalImageURL = nil  // Don't send to backend (preserve existing)
         }
         
-        // 2. Handle new model capture (if user captured a new model)
-        var finalModelURL: String? = nil
         if userCapturedNewModel || appModel.localModelURL != nil {
-            // Check if upload is in progress
-            if case .uploading = appModel.uploadState {
-                print("⚠️ Model upload in progress, waiting...")
-                // Wait for upload with timeout
-                if let url = try await waitForUpload(timeout: 60) {
-                    finalModelURL = url.absoluteString
-                    print("✅ New model uploaded: \(finalModelURL ?? "nil")")
-                }
-            } else if case .completed(let url) = appModel.uploadState {
-                finalModelURL = url.absoluteString
-                print("✅ Model already uploaded: \(finalModelURL ?? "nil")")
+            if let localURL = appModel.localModelURL ?? modelURL {
+                let sessionId = appModel.captureSessionID.uuidString
+                let token = try await SupabaseManager.shared.getValidAccessTokenOrRefresh()
+                
+                let pendingData: [String: String] = [
+                    "dish_id": dish.id,
+                    "local_path": localURL.path,
+                    "session_id": sessionId,
+                    "timestamp": String(Date().timeIntervalSince1970),
+                    "upload_state": "uploading"
+                ]
+                
+                var pendingList = UserDefaults.standard.array(forKey: "pending_dish_uploads") as? [[String:String]] ?? []
+                pendingList.append(pendingData)
+                UserDefaults.standard.set(pendingList, forKey: "pending_dish_uploads")
+                
+                try BackgroundUploader.shared.startUpload(
+                    fileURL: localURL,
+                    name: "\(sessionId).usdz",
+                    dishId: dish.id,
+                    intendedStatus: status,
+                    sessionId: sessionId,
+                    token: token
+                )
             }
         }
-        // If not captured new model, keep existing (don't send to backend)
-        
-        // 3. Perform partial update
-        let priceValue = Double(price) ?? 0.0
         
         try await SupabaseManager.shared.updateDishPartial(
             id: dish.id,
             name: name,
             description: description.isEmpty ? nil : description,
-            price: priceValue,
+            price: Double(price) ?? 0.0,
             category: category,
             imageURL: userReplacedImage ? finalImageURL : nil,
-            modelURL: userCapturedNewModel ? finalModelURL : nil
+            modelURL: nil // Let background handle it
         )
-        
-        print("✅ Dish '\(name)' updated successfully")
     }
     
     // MARK: - Create New Dish
     private func performCreate() async throws {
-        // 1. Upload Image (Mandatory)
         var uploadedImageURL: String? = nil
         if let imageData = selectedImageData {
             let imageName = UUID().uuidString
             uploadedImageURL = try await SupabaseManager.shared.uploadImage(data: imageData, name: imageName)
         }
         
-        // 2. Handle 3D Model with Timeout Logic
-        var finalModelURL: String? = nil
-        
-        // ✅ DATA-DRIVEN: Upload already started in setLocalModelURL()
-        // Just check current state and wait if needed
-        if case .completed(let url) = appModel.uploadState {
-            finalModelURL = url.absoluteString
-        }
-        // No need to trigger upload - it's already running from setLocalModelURL()
-        
-        
-        // If not yet available, wait with timeout
-        if finalModelURL == nil {
-            finalModelURL = try await waitForUpload(timeout: 60)?.absoluteString
-        }
-        
-        // 3. Create Dish
-        let priceValue = Double(price) ?? 0.0
-        let generationStatus = finalModelURL == nil ? "pending_upload" : "completed"
+        let intendedStatus = status
+        let localURL = appModel.localModelURL ?? modelURL
+        let isUploadingModel = localURL != nil
         
         let dish = try await SupabaseManager.shared.createDish(
             name: name,
             description: description,
-            price: priceValue,
+            price: Double(price) ?? 0.0,
             category: category.isEmpty ? "Main Course" : category,
-            modelURL: finalModelURL, // Pass nil if pending
+            modelURL: nil,
             thumbnailURL: uploadedImageURL,
-            status: status,
-            generationStatus: generationStatus
+            status: isUploadingModel ? "draft" : status,
+            generationStatus: isUploadingModel ? "pending_upload" : "completed"
         )
         
-        // 4. Robust Persistence for Pending Uploads
-        if finalModelURL == nil, let local = appModel.localModelURL {
+        if let url = localURL {
+             let sessionId = appModel.captureSessionID.uuidString
              let pendingData: [String: String] = [
                  "dish_id": dish.id,
-                 "local_path": local.path,
-                 "session_id": appModel.captureSessionID.uuidString,
-                 "timestamp": String(Date().timeIntervalSince1970)
+                 "local_path": url.path,
+                 "session_id": sessionId,
+                 "timestamp": String(Date().timeIntervalSince1970),
+                 "upload_state": "uploading"
              ]
              
-             // Append to UserDefaults list
              var pendingList = UserDefaults.standard.array(forKey: "pending_dish_uploads") as? [[String:String]] ?? []
              pendingList.append(pendingData)
              UserDefaults.standard.set(pendingList, forKey: "pending_dish_uploads")
              
-             print("Saved pending upload details for dish \(dish.id) locally.")
+             let token = try await SupabaseManager.shared.getValidAccessTokenOrRefresh()
+             try BackgroundUploader.shared.startUpload(
+                 fileURL: url,
+                 name: "\(sessionId).usdz",
+                 dishId: dish.id,
+                 intendedStatus: intendedStatus,
+                 sessionId: sessionId,
+                 token: token
+             )
         }
         
         print("✅ Dish '\(name)' created successfully")
     }
     
-    // MARK: - Helper: Wait for Upload
-    private func waitForUpload(timeout: UInt64) async throws -> URL? {
-        let timeoutNanoseconds = timeout * 1_000_000_000
-        let startTime = DispatchTime.now()
-        
-        while true {
-            // Check if time exceeded
-            let currentTime = DispatchTime.now()
-            if currentTime.uptimeNanoseconds - startTime.uptimeNanoseconds > timeoutNanoseconds {
-                print("Upload timeout reached. Proceeding with pending status.")
-                return nil
-            }
-            
-            // Check state
-            if case .completed(let url) = appModel.uploadState {
-                return url
-            }
-            if case .failed = appModel.uploadState {
-                print("Upload failed during wait. Proceeding with pending status.")
-                return nil
-            }
-            
-            try await Task.sleep(nanoseconds: 500_000_000) // 0.5s poll
-        }
-    }
+
 }
 

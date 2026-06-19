@@ -106,7 +106,7 @@ struct ModelCard: View {
             HStack(alignment: .top, spacing: 16) {
                 // Model Preview
                 ZStack(alignment: .bottomTrailing) {
-                    AsyncImage(url: URL(string: model.image)) { phase in
+                    CachedAsyncImage(url: URL(string: model.image)) { phase in
                         if let image = phase.image {
                             image.resizable().aspectRatio(contentMode: .fill)
                         } else {
