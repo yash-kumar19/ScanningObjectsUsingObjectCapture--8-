@@ -3,12 +3,14 @@ import SwiftUI
 
 /// Utility for downloading and caching 3D models from remote URLs
 @MainActor
-class ModelDownloader: ObservableObject {
+class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDelegate {
     @Published var downloadProgress: Double = 0
     @Published var isDownloading: Bool = false
     @Published var error: String?
     
     private let cacheDirectory: URL
+    private var activeContinuation: CheckedContinuation<URL, Error>?
+    private var activeDestinationURL: URL?
     
     // 🔥 CRITICAL: Custom URLSession for large USDZ files
     private lazy var session: URLSession = {
@@ -22,13 +24,15 @@ class ModelDownloader: ObservableObject {
         config.allowsExpensiveNetworkAccess = true
         config.allowsConstrainedNetworkAccess = true
         
-        return URLSession(configuration: config)
+        return URLSession(configuration: config, delegate: self, delegateQueue: .main)
     }()
     
-    init() {
+    override init() {
         // Create cache directory in Documents/ModelCache
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         cacheDirectory = documentsPath.appendingPathComponent("ModelCache", isDirectory: true)
+        
+        super.init()
         
         // Create directory if it doesn't exist
         try? FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
@@ -46,8 +50,8 @@ class ModelDownloader: ObservableObject {
                 let files = try fileManager.contentsOfDirectory(at: self.cacheDirectory, includingPropertiesForKeys: [.creationDateKey])
                 for file in files {
                     if let attrs = try? fileManager.attributesOfItem(atPath: file.path),
-                       let creationDate = attrs[.creationDate] as? Date,
-                       creationDate < expirationDate {
+                        let creationDate = attrs[.creationDate] as? Date,
+                        creationDate < expirationDate {
                         try? fileManager.removeItem(at: file)
                         print("🗑️ Removed old cached model: \(file.lastPathComponent)")
                     }
@@ -86,71 +90,18 @@ class ModelDownloader: ObservableObject {
             isDownloading = true
             downloadProgress = 0
             error = nil
+            activeDestinationURL = localURL
         }
         
-        do {
-            print("🔍 [ModelDownloader] Starting URLSession download...")
-            
-            // Download the file using custom session with extended timeouts
-            let (tempURL, response) = try await session.download(from: remoteURL)
-            
-            print("🔍 [ModelDownloader] Download completed, checking response...")
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                print("❌ [ModelDownloader] Response is not HTTPURLResponse")
-                throw ModelDownloadError.invalidResponse
-            }
-            
-            print("🔍 [ModelDownloader] HTTP Status Code: \(httpResponse.statusCode)")
-            print("🔍 [ModelDownloader] Response headers: \(httpResponse.allHeaderFields)")
-            
-            guard (200...299).contains(httpResponse.statusCode) else {
-                print("❌ [ModelDownloader] Invalid status code: \(httpResponse.statusCode)")
-                throw ModelDownloadError.invalidResponse
-            }
-            
-            // Check file size before moving
-            let attributes = try FileManager.default.attributesOfItem(atPath: tempURL.path)
-            let fileSize = attributes[.size] as? Int64 ?? 0
-            print("📦 Downloaded USDZ size: \(fileSize) bytes")
-            
-            if fileSize == 0 {
-                print("❌ [ModelDownloader] Downloaded file is empty!")
-                throw ModelDownloadError.fileNotFound
-            }
-            
-            // Move to cache directory
-            print("🔍 [ModelDownloader] Moving file to cache directory...")
-            try FileManager.default.moveItem(at: tempURL, to: localURL)
-            
-            await MainActor.run {
-                isDownloading = false
-                downloadProgress = 1.0
-            }
-            
-            print("✅ Model downloaded and cached at: \(localURL.path)")
-            return localURL
-            
-        } catch {
-            print("❌ [ModelDownloader] Download failed with error: \(error)")
-            print("❌ [ModelDownloader] Error type: \(type(of: error))")
-            print("❌ [ModelDownloader] Error description: \(error.localizedDescription)")
-            
-            if let urlError = error as? URLError {
-                print("❌ [ModelDownloader] URLError code: \(urlError.code.rawValue)")
-                print("❌ [ModelDownloader] URLError description: \(urlError.localizedDescription)")
-            }
-            
-            await MainActor.run {
-                isDownloading = false
-                self.error = error.localizedDescription
-            }
-            throw error
+        return try await withCheckedThrowingContinuation { continuation in
+            activeContinuation = continuation
+            let task = session.downloadTask(with: remoteURL)
+            task.resume()
         }
     }
     
     /// Generates a cache filename from a remote URL
-    private func cacheFilename(for url: URL) -> String {
+    nonisolated private func cacheFilename(for url: URL) -> String {
         // Use the last path component (filename) from the URL
         // Supabase URLs typically end with: /storage/v1/object/public/models/{uuid}.usdz
         let filename = url.lastPathComponent
@@ -170,6 +121,63 @@ class ModelDownloader: ObservableObject {
         try? FileManager.default.removeItem(at: cacheDirectory)
         try? FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
         print("🗑️ Model cache cleared")
+    }
+    
+    // MARK: - URLSessionDownloadDelegate
+    
+    nonisolated func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        Task { @MainActor in
+            if totalBytesExpectedToWrite > 0 {
+                self.downloadProgress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+            }
+        }
+    }
+    
+    nonisolated func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        guard let remoteURL = downloadTask.originalRequest?.url else {
+            Task { @MainActor in
+                self.activeContinuation?.resume(throwing: ModelDownloadError.fileNotFound)
+                self.activeContinuation = nil
+                self.isDownloading = false
+            }
+            return
+        }
+        
+        let filename = cacheFilename(for: remoteURL)
+        let destinationURL = cacheDirectory.appendingPathComponent(filename)
+        
+        do {
+            try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+            
+            if FileManager.default.fileExists(atPath: destinationURL.path) {
+                try? FileManager.default.removeItem(at: destinationURL)
+            }
+            try FileManager.default.moveItem(at: location, to: destinationURL)
+            
+            Task { @MainActor in
+                self.activeContinuation?.resume(returning: destinationURL)
+                self.activeContinuation = nil
+                self.isDownloading = false
+            }
+        } catch {
+            print("❌ [ModelDownloader] Synchronous move failed: \(error)")
+            Task { @MainActor in
+                self.activeContinuation?.resume(throwing: error)
+                self.activeContinuation = nil
+                self.isDownloading = false
+            }
+        }
+    }
+    
+    nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        Task { @MainActor in
+            if let error = error {
+                self.activeContinuation?.resume(throwing: error)
+                self.activeContinuation = nil
+                self.isDownloading = false
+                self.error = error.localizedDescription
+            }
+        }
     }
 }
 

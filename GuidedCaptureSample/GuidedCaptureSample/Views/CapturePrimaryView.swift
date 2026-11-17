@@ -20,8 +20,15 @@ struct CapturePrimaryView: View {
             ObjectCaptureView(session: session,
                               cameraFeedOverlay: { GradientBackground() })
             .hideObjectReticle(appModel.captureMode == .area)
-            .blur(radius: appModel.showOverlaySheets ? 45 : 0)
-            .transition(.opacity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea()
+            
+            // Replaces the problematic .blur() modifier on the ObjectCaptureView
+            if appModel.showOverlaySheets {
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .ignoresSafeArea()
+            }
 
             CaptureOverlayView(session: session)
         }

@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 
 struct CaptureSetupScreen: View {
     @Environment(\.dismiss) var dismiss
@@ -6,6 +7,7 @@ struct CaptureSetupScreen: View {
     
     @Binding var modelURL: URL?
     @State private var showCapture = false
+    @State private var showPermissionAlert = false
     
     var body: some View {
         NavigationStack {
@@ -71,7 +73,7 @@ struct CaptureSetupScreen: View {
                     
                     // Start Button
                     Button(action: {
-                        showCapture = true
+                        checkCameraPermissionAndStart()
                     }) {
                         Text("Start Capture")
                             .font(.system(size: 18, weight: .semibold))
@@ -102,6 +104,43 @@ struct CaptureSetupScreen: View {
                 dismiss() // Dismiss setup screen and return to Add/Edit
             })
             .environment(appModel)
+        }
+        .alert("Camera Access Required", isPresented: $showPermissionAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Settings") {
+                if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(settingsURL)
+                }
+            }
+        } message: {
+            Text("Please enable camera access in Settings to capture 3D models of your dishes.")
+        }
+    }
+    
+    private func checkCameraPermissionAndStart() {
+        appModel.reset()
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        switch status {
+        case .authorized:
+            showCapture = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                if granted {
+                    // Give iOS time to fully tear down the camera permission dialog
+                    // and hand the camera pipeline to our app before starting the
+                    // ObjectCaptureSession. 1.0s is required on first-ever grant
+                    // because the system camera handover takes longer than 0.5s.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        showCapture = true
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        showPermissionAlert = true
+                    }
+                }
+            }
+        default:
+            showPermissionAlert = true
         }
     }
 }

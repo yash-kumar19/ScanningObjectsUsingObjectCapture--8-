@@ -15,40 +15,41 @@ struct CartScreen: View {
     var hasActiveOrder: Bool
     var onViewOrders: () -> Void
     
+    @State private var isSimulatedLoading = true
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
-            HStack {
-                Color.clear.frame(width: 40, height: 40)
-                
-                Spacer()
-                
+            ZStack {
                 Text("Cart")
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, alignment: .center)
                 
-                Spacer()
-                
-                // Persistent Orders button
-                Button(action: onViewOrders) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "list.clipboard")
-                            .font(.system(size: 12, weight: .semibold))
-                        Text("Orders")
-                            .font(.system(size: 12, weight: .semibold))
-                        
-                        if hasActiveOrder {
-                            Circle()
-                                .fill(Color.orange)
-                                .frame(width: 6, height: 6)
+                HStack {
+                    Spacer()
+                    
+                    // Persistent Orders button
+                    Button(action: onViewOrders) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "list.clipboard")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text("Orders")
+                                .font(.system(size: 12, weight: .semibold))
+                            
+                            if hasActiveOrder {
+                                Circle()
+                                    .fill(Color.orange)
+                                    .frame(width: 6, height: 6)
+                            }
                         }
+                        .foregroundColor(Color(hex: "3B82F6"))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color(hex: "3B82F6").opacity(0.12))
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(Color(hex: "3B82F6").opacity(0.3), lineWidth: 1))
                     }
-                    .foregroundColor(Color(hex: "3B82F6"))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color(hex: "3B82F6").opacity(0.12))
-                    .clipShape(Capsule())
-                    .overlay(Capsule().stroke(Color(hex: "3B82F6").opacity(0.3), lineWidth: 1))
                 }
             }
             .padding(.horizontal, 20)
@@ -64,7 +65,16 @@ struct CartScreen: View {
                 alignment: .bottom
             )
             
-            if cartManager.isEmpty {
+            if isSimulatedLoading {
+                ScrollView {
+                    LazyVStack(spacing: 16) {
+                        ForEach(0..<2, id: \.self) { _ in
+                            CartItemRowSkeleton()
+                        }
+                    }
+                    .padding(20)
+                }
+            } else if cartManager.isEmpty {
                 // Empty State — positioned naturally near the top
                 VStack(spacing: 20) {
                     Image(systemName: "cart")
@@ -205,6 +215,12 @@ struct CartScreen: View {
             }
         }
         .background(Theme.background.ignoresSafeArea())
+        .onAppear {
+            isSimulatedLoading = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                isSimulatedLoading = false
+            }
+        }
     }
 }
 
@@ -393,13 +409,13 @@ struct OrdersDetailsScreen: View {
                 Theme.background.ignoresSafeArea()
                 
                 if isLoading {
-                    VStack(spacing: 16) {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .scaleEffect(1.2)
-                        Text("Loading orders...")
-                            .font(.system(size: 15))
-                            .foregroundColor(Color.white.opacity(0.6))
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            ForEach(0..<3, id: \.self) { _ in
+                                OrderRowSkeleton()
+                            }
+                        }
+                        .padding(20)
                     }
                 } else if let error = errorMessage {
                     VStack(spacing: 16) {
@@ -605,6 +621,7 @@ struct OrdersDetailsScreen: View {
         
         await MainActor.run { self.isLoading = true; self.errorMessage = nil }
         
+        let startTime = Date()
         do {
             var fetchedOrders: [Order] = []
             try await withThrowingTaskGroup(of: Order?.self) { group in
@@ -631,11 +648,20 @@ struct OrdersDetailsScreen: View {
                 o1.created_at > o2.created_at
             }
             
+            let elapsed = Date().timeIntervalSince(startTime)
+            if elapsed < 0.6 {
+                try? await Task.sleep(nanoseconds: UInt64((0.6 - elapsed) * 1_000_000_000))
+            }
+            
             await MainActor.run {
                 self.orders = fetchedOrders
                 self.isLoading = false
             }
         } catch {
+            let elapsed = Date().timeIntervalSince(startTime)
+            if elapsed < 0.6 {
+                try? await Task.sleep(nanoseconds: UInt64((0.6 - elapsed) * 1_000_000_000))
+            }
             await MainActor.run {
                 self.errorMessage = error.localizedDescription
                 self.isLoading = false
@@ -684,6 +710,80 @@ struct OrdersDetailsScreen: View {
         outputFormatter.dateStyle = .none
         outputFormatter.timeStyle = .short
         return outputFormatter.string(from: date)
+    }
+}
+
+struct CartItemRowSkeleton: View {
+    var body: some View {
+        HStack(spacing: 16) {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white.opacity(0.08))
+                .frame(width: 70, height: 70)
+            
+            VStack(alignment: .leading, spacing: 6) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: 120, height: 16)
+                
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: 60, height: 14)
+                
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: 85, height: 12)
+            }
+            
+            Spacer()
+            
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.white.opacity(0.08))
+                .frame(width: 90, height: 28)
+        }
+        .padding(12)
+        .background(Color(hex: "1E293B"))
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+        .skeleton(isLoading: true)
+    }
+}
+
+struct OrderRowSkeleton: View {
+    var body: some View {
+        HStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.white.opacity(0.08))
+                        .frame(width: 80, height: 16)
+                    
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.white.opacity(0.08))
+                        .frame(width: 60, height: 12)
+                }
+                
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: 140, height: 14)
+            }
+            
+            Spacer()
+            
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white.opacity(0.08))
+                .frame(width: 80, height: 24)
+        }
+        .padding(16)
+        .background(Color(hex: "1E293B"))
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+        .skeleton(isLoading: true)
     }
 }
 

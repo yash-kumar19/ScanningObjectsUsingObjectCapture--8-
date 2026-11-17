@@ -20,30 +20,7 @@ struct ModelPreviewSheet: View {
                         .ignoresSafeArea()
                 }
             } else if downloader.isDownloading {
-                // Show download progress
-                VStack(spacing: 20) {
-                    ProgressView(value: downloader.downloadProgress)
-                        .progressViewStyle(.linear)
-                        .tint(Color(hex: "3B82F6"))
-                        .frame(width: 200)
-                    
-                    Text("Downloading model...")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                    
-                    Text("\(Int(downloader.downloadProgress * 100))%")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                    
-                    Button(action: onDismiss) {
-                        Text("Cancel")
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 12)
-                            .background(Color(hex: "1E293B"))
-                            .cornerRadius(12)
-                    }
-                }
+                PremiumDownloadView(progress: downloader.downloadProgress, onCancel: onDismiss)
             } else if let error = downloadError {
                 // Show error
                 VStack(spacing: 20) {

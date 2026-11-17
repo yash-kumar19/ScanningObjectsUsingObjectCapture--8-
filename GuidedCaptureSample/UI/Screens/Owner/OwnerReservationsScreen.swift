@@ -26,12 +26,12 @@ struct OwnerReservationsScreen: View {
         
         if selectedDate == "today" {
             result = result.filter {
-                guard let date = ISO8601DateFormatter().date(from: $0.reservation_date) else { return false }
+                guard let date = ISO8601DateFormatter.parse($0.reservation_date) else { return false }
                 return calendar.isDateInToday(date)
             }
         } else if selectedDate == "tomorrow" {
             result = result.filter {
-                guard let date = ISO8601DateFormatter().date(from: $0.reservation_date) else { return false }
+                guard let date = ISO8601DateFormatter.parse($0.reservation_date) else { return false }
                 return calendar.isDateInTomorrow(date)
             }
         }
@@ -205,8 +205,7 @@ struct OwnerReservationCard: View {
     }
     
     var formattedDate: String {
-        let formatter = ISO8601DateFormatter()
-        if let date = formatter.date(from: reservation.reservation_date) {
+        if let date = ISO8601DateFormatter.parse(reservation.reservation_date) {
             let displayFormatter = DateFormatter()
             displayFormatter.dateStyle = .medium
             return displayFormatter.string(from: date)
@@ -215,8 +214,7 @@ struct OwnerReservationCard: View {
     }
     
     var formattedTime: String {
-        let formatter = ISO8601DateFormatter()
-        if let date = formatter.date(from: reservation.reservation_date) {
+        if let date = ISO8601DateFormatter.parse(reservation.reservation_date) {
             let displayFormatter = DateFormatter()
             displayFormatter.timeStyle = .short
             return displayFormatter.string(from: date)

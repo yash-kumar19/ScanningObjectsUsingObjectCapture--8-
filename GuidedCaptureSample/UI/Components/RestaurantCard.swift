@@ -104,3 +104,42 @@ struct RestaurantCard: View {
         .buttonStyle(ScaleButtonStyle())
     }
 }
+
+struct RestaurantCardSkeleton: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            // Image Placeholder
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white.opacity(0.08))
+                .frame(width: 280, height: 160)
+            
+            // Info Section Placeholder
+            VStack(alignment: .leading, spacing: 8) {
+                // Name
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: 180, height: 16)
+                
+                // Cuisine
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: 100, height: 12)
+                
+                // Location
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: 140, height: 12)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(Color.white.opacity(0.03))
+        }
+        .frame(width: 280)
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+        .skeleton(isLoading: true)
+    }
+}

@@ -23,35 +23,43 @@ struct UploadQueueView: View {
         
         // 1. Add remote processing items
         let remoteProcessing = dishes.filter { 
-            let s = $0.generation_status ?? ""
-            return s == "pending" || s == "processing" || s == "failed" || s == "pending_upload"
+            let s = $0.model_conversion_status ?? $0.generation_status ?? ""
+            let isFinished = s == "ready" || s == "completed" || $0.model_glb_url != nil
+            return (s == "pending" || s == "processing" || s == "failed" || s == "pending_upload") && !isFinished
         }
         
         // To handle 15-minute watchdog logic, check conversion_started_at
-        // BUT wait, we don't have conversion_started_at in Dish model yet?
-        // Wait, I didn't add conversion_started_at to Dish struct in SupabaseManager. Let me assume it might not be there.
-        // Actually, let's keep it simple. If status is failed, it's failed.
         for dish in remoteProcessing {
             // Check if it's currently uploading locally
             if let local = localUploads.first(where: { $0["dish_id"] == dish.id }),
                let sessionId = local["session_id"] {
-                let progress = backgroundUploader.activeUploads[sessionId] ?? 0.0
+                let activeProgress = backgroundUploader.activeUploads[sessionId]
                 let state = local["upload_state"] ?? "uploading"
+                
+                // If state is still "uploading" but no active progress exists,
+                // the upload likely just completed and UserDefaults hasn't been updated yet.
+                // Treat as "processing" to avoid showing stale "Uploading 0%"
+                let effectiveState: String
+                if state == "uploading" && activeProgress == nil {
+                    effectiveState = "processing"
+                } else {
+                    effectiveState = state
+                }
                 
                 items.append(UnifiedUploadItem(
                     id: dish.id,
                     title: dish.name,
-                    status: state == "failed" ? "failed_upload" : "uploading",
-                    progress: state == "failed" ? nil : progress,
+                    status: effectiveState == "failed" ? "failed_upload" : (effectiveState == "processing" ? "processing" : "uploading"),
+                    progress: (effectiveState == "failed" || effectiveState == "processing") ? nil : activeProgress,
                     timestamp: Date()
                 ))
             } else {
-                var status = dish.generation_status ?? ""
+                var status = dish.model_conversion_status ?? dish.generation_status ?? ""
                 
                 // Watchdog UI Logic: If pending/processing for > 15 mins, treat as failed
                 if (status == "pending" || status == "processing"),
                    let startedAtStr = dish.conversion_started_at,
-                   let startedAt = ISO8601DateFormatter().date(from: startedAtStr),
+                   let startedAt = ISO8601DateFormatter.parse(startedAtStr),
                    Date().timeIntervalSince(startedAt) > 15 * 60 {
                     status = "failed"
                 }

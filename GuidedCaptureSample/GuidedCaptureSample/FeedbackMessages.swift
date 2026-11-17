@@ -21,6 +21,12 @@ final class FeedbackMessages {
                     bundle: Bundle.main,
                     value: "Move Closer",
                     comment: "Feedback message to move closer for object capture")
+               case .objectNotDetected:
+                   return NSLocalizedString(
+                    "Object not detected. Center the object and ensure good lighting. (Object Capture)",
+                    bundle: Bundle.main,
+                    value: "Object not detected. Center the object and ensure good lighting.",
+                    comment: "Feedback message when object is not detected")
                case .objectTooClose:
                    if captureMode == .area { return nil }
                    return NSLocalizedString(

@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 
+@MainActor
 struct AddEditDishScreen: View {
     @Environment(AppDataModel.self) var appModel
     
@@ -38,6 +39,7 @@ struct AddEditDishScreen: View {
     @State private var errorMessage: String?
     @State private var showError = false
     @State private var showModelPreview = false
+    @State private var showCaptureSetup = false
     
     // Cellular warning
     @State private var showCellularWarning = false
@@ -53,58 +55,7 @@ struct AddEditDishScreen: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Header / Tabs
-                VStack(spacing: 20) {
-                    // Custom Segmented Control
-                    HStack(spacing: 0) {
-                        // Details Tab
-                        Button(action: { withAnimation { selectedTab = 0 } }) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "doc.text")
-                                Text("Details")
-                            }
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(selectedTab == 0 ? .white : .gray)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(
-                                ZStack {
-                                    if selectedTab == 0 {
-                                        RoundedRectangle(cornerRadius: 25)
-                                            .fill(Color(hex: "3B82F6"))
-                                            .matchedGeometryEffect(id: "TAB", in: namespace)
-                                    }
-                                }
-                            )
-                        }
-                        
-                        // 3D Preview Tab
-                        Button(action: { withAnimation { selectedTab = 1 } }) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "cube")
-                                Text("3D Preview")
-                            }
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(selectedTab == 1 ? .white : .gray)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(
-                                ZStack {
-                                    if selectedTab == 1 {
-                                        RoundedRectangle(cornerRadius: 25)
-                                            .fill(Color(hex: "3B82F6"))
-                                            .matchedGeometryEffect(id: "TAB", in: namespace)
-                                    }
-                                }
-                            )
-                        }
-                    }
-                    .padding(4)
-                    .background(Color(hex: "1E293B"))
-                    .clipShape(RoundedRectangle(cornerRadius: 30))
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
-                }
+                headerTabsView
                 
                 // Content
                 ScrollView(showsIndicators: false) {
@@ -119,45 +70,7 @@ struct AddEditDishScreen: View {
                     .padding(.bottom, 100) // Space for bottom buttons
                 }
                 
-                // Bottom Buttons
-                HStack(spacing: 12) {
-                    // Cancel Button
-                    Button(action: {
-                        onBack()
-                    }) {
-                        Text("Cancel")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(Color(hex: "1E293B"))
-                            .cornerRadius(12)
-                    }
-                    
-                    // Save Dish Button
-                    Button(action: saveDish) {
-                        if isSaving {
-                                VStack(spacing: 4) {
-                                    ProgressView()
-                                        .tint(.white)
-                                    Text(existingDish == nil ? "Saving..." : "Updating...")
-                                        .font(.caption)
-                                        .foregroundColor(.white.opacity(0.8))
-                                }
-                        } else {
-                            Text(existingDish == nil ? "Add Dish" : "Save Changes")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(Color(hex: "3B82F6"))
-                    .cornerRadius(12)
-                    .disabled(isSaving)
-                }
-                .padding(20)
-                .background(Color(hex: "0F172A"))
+                bottomActionBar
             }
         }
         .onAppear {
@@ -167,7 +80,7 @@ struct AddEditDishScreen: View {
                 description = dish.description ?? ""
                 price = String(format: "%.2f", dish.price)
                 category = dish.category
-                status = dish.is_active == true ? "published" : "draft"
+                status = dish.status ?? "draft"
                 initialModelURL = dish.model_url
                 initialImageURL = dish.thumbnail_url
                 
@@ -229,11 +142,24 @@ struct AddEditDishScreen: View {
         .fullScreenCover(isPresented: $showModelPreview) {
              // Use ModelPreviewSheet that handles both local and remote URLs
              ModelPreviewSheet(
-                 modelURL: appModel.localModelURL ?? modelURL,
+                 modelURL: appModel.localModelURL ?? modelURL ?? (existingDish?.model_url != nil ? URL(string: existingDish!.model_url!) : nil),
                  onDismiss: {
                      showModelPreview = false
                  }
              )
+        }
+        .sheet(isPresented: $showCaptureSetup) {
+            CaptureSetupScreen(modelURL: $modelURL)
+                .environment(appModel)
+        }
+        .onChange(of: modelURL) { _, newURL in
+            if let newURL = newURL {
+                userCapturedNewModel = true
+                appModel.setLocalModelURL(newURL)
+                withAnimation {
+                    selectedTab = 1
+                }
+            }
         }
         .alert("Cellular Data Warning", isPresented: $showCellularWarning) {
             Button("Cancel", role: .cancel) { }
@@ -247,6 +173,114 @@ struct AddEditDishScreen: View {
     }
     
     @Namespace private var namespace
+    
+    private var hasModelAvailable: Bool {
+        existingDish?.model_url != nil || modelURL != nil || appModel.localModelURL != nil
+    }
+    
+    // MARK: - Header Tabs
+    private var headerTabsView: some View {
+        VStack(spacing: 16) {
+            Text(existingDish == nil ? "Add Dish" : "Edit Dish")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(.white)
+                .padding(.top, 16)
+            
+            // Custom Segmented Control (Always visible)
+            HStack(spacing: 0) {
+                // Details Tab
+                Button(action: { withAnimation { selectedTab = 0 } }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "doc.text")
+                        Text("Details")
+                    }
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(selectedTab == 0 ? .white : .gray)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(
+                        ZStack {
+                            if selectedTab == 0 {
+                                RoundedRectangle(cornerRadius: 25)
+                                    .fill(Color(hex: "3B82F6"))
+                                    .matchedGeometryEffect(id: "TAB", in: namespace)
+                            }
+                        }
+                    )
+                }
+                
+                // 3D Preview Tab
+                Button(action: { withAnimation { selectedTab = 1 } }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "cube")
+                        Text("3D Model")
+                        if hasModelAvailable {
+                            Circle()
+                                .fill(Color(hex: "10B981"))
+                                .frame(width: 8, height: 8)
+                        }
+                    }
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(selectedTab == 1 ? .white : .gray)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(
+                        ZStack {
+                            if selectedTab == 1 {
+                                RoundedRectangle(cornerRadius: 25)
+                                    .fill(Color(hex: "3B82F6"))
+                                    .matchedGeometryEffect(id: "TAB", in: namespace)
+                            }
+                        }
+                    )
+                }
+            }
+            .padding(4)
+            .background(Color(hex: "1E293B"))
+            .clipShape(RoundedRectangle(cornerRadius: 30))
+            .padding(.horizontal, 20)
+        }
+    }
+    
+    // MARK: - Bottom Action Bar
+    private var bottomActionBar: some View {
+        HStack(spacing: 12) {
+            // Cancel Button
+            Button(action: onBack) {
+                Text("Cancel")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(Color(hex: "1E293B"))
+                    .cornerRadius(12)
+            }
+            
+            // Save Dish Button
+            Button(action: saveDish) {
+                if isSaving {
+                    VStack(spacing: 4) {
+                        ProgressView()
+                            .tint(.white)
+                        Text(existingDish == nil ? "Saving..." : "Updating...")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                } else {
+                    Text(existingDish == nil ? "Add Dish" : "Save Changes")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(Color(hex: "3B82F6"))
+            .cornerRadius(12)
+            .disabled(isSaving)
+        }
+        .padding(20)
+        .background(Color(hex: "0F172A"))
+    }
     
     // MARK: - Details View
     var detailsView: some View {
@@ -267,8 +301,8 @@ struct AddEditDishScreen: View {
                             .cornerRadius(16)
                             .frame(height: 200)
                         
-                        if let selectedImage {
-                            selectedImage
+                        if let img = selectedImage {
+                            img
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
                                 .frame(height: 200)
@@ -295,6 +329,101 @@ struct AddEditDishScreen: View {
                             }
                         }
                     }
+                }
+            }
+            
+            // 3D Model Attachment / Scan Section
+            VStack(alignment: .leading, spacing: 8) {
+                Text("3D Model")
+                    .font(.system(size: 14))
+                    .foregroundColor(Color.white.opacity(0.7))
+                
+                if hasModelAvailable {
+                    HStack(spacing: 14) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(hex: "3B82F6").opacity(0.15))
+                                .frame(width: 48, height: 48)
+                            Image(systemName: "cube.fill")
+                                .font(.system(size: 22))
+                                .foregroundColor(Color(hex: "3B82F6"))
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("3D Model Attached")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.white)
+                            Text("Ready for interactive AR menu")
+                                .font(.system(size: 12))
+                                .foregroundColor(Color(hex: "10B981"))
+                        }
+                        
+                        Spacer()
+                        
+                        HStack(spacing: 8) {
+                            Button(action: { showModelPreview = true }) {
+                                Image(systemName: "eye.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.white)
+                                    .padding(10)
+                                    .background(Color(hex: "3B82F6"))
+                                    .clipShape(Circle())
+                            }
+                            
+                            Button(action: { showCaptureSetup = true }) {
+                                Image(systemName: "camera.viewfinder")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.white)
+                                    .padding(10)
+                                    .background(Color(hex: "1E293B"))
+                                    .clipShape(Circle())
+                                    .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
+                            }
+                        }
+                    }
+                    .padding(14)
+                    .background(Color(hex: "1E293B"))
+                    .cornerRadius(14)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color(hex: "3B82F6").opacity(0.3), lineWidth: 1)
+                    )
+                } else {
+                    Button(action: { showCaptureSetup = true }) {
+                        HStack(spacing: 14) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(LinearGradient(colors: [Color(hex: "3B82F6").opacity(0.2), Color(hex: "8B5CF6").opacity(0.2)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                    .frame(width: 48, height: 48)
+                                Image(systemName: "camera.viewfinder")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(Color(hex: "60A5FA"))
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Scan Dish in 3D")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(.white)
+                                Text("Use LiDAR & camera to create 3D model")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(Color.white.opacity(0.6))
+                            }
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(Color.white.opacity(0.4))
+                        }
+                        .padding(14)
+                        .background(Color(hex: "1E293B"))
+                        .cornerRadius(14)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(Color(hex: "3B82F6").opacity(0.3), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
             }
             
@@ -433,67 +562,104 @@ struct AddEditDishScreen: View {
     }
     
     // MARK: - 3D Preview View
-    // MARK: - 3D Preview View
     var preview3DView: some View {
         VStack(spacing: 20) {
-             // 1. Static Preview / Status Card
-             VStack(spacing: 16) {
-                 ZStack {
-                     Circle()
-                         .fill(Color(hex: "3B82F6").opacity(0.1))
-                         .frame(width: 80, height: 80)
-                     
-                     Image(systemName: "cube.fill")
-                         .font(.system(size: 40))
-                         .foregroundColor(Color(hex: "3B82F6"))
-                 }
-                 
-                 VStack(spacing: 8) {
-                     if appModel.localModelURL != nil || modelURL != nil {
-                          Text("Capture Complete")
-                             .font(.headline)
-                             .foregroundColor(.white)
-                          Text("Model is saved locally and ready to upload.")
-                             .font(.caption)
-                             .foregroundColor(.gray)
-                             .multilineTextAlignment(.center)
-                     } else {
-                         Text("No Model")
-                             .font(.headline)
-                             .foregroundColor(.white)
-                         Text("Capture a 3D model to see it here.")
-                             .font(.caption)
-                             .foregroundColor(.gray)
-                             .multilineTextAlignment(.center)
-                     }
-                 }
-             }
-             .padding(30)
-             .frame(maxWidth: .infinity)
-             .background(Color(hex: "1E293B"))
-             .cornerRadius(20)
-             .overlay(
-                 RoundedRectangle(cornerRadius: 20)
-                     .stroke(Color.white.opacity(0.1), lineWidth: 1)
-             )
-             
-             // 2. Action Button (View 3D Model) - Works with both local and remote URLs
-             Button(action: {
-                 showModelPreview = true
-             }) {
-                 HStack {
-                     Image(systemName: "arkit")
-                     Text("View 3D Model")
-                 }
-                 .font(.headline)
-                 .foregroundColor(.white)
-                 .frame(maxWidth: .infinity)
-                 .padding()
-                 .background(Color(hex: "3B82F6"))
-                 .cornerRadius(12)
-             }
-             .disabled(appModel.localModelURL == nil && modelURL == nil)
-             .opacity((appModel.localModelURL == nil && modelURL == nil) ? 0.5 : 1.0)
+            // 1. Static Preview / Status Card
+            VStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(hasModelAvailable ? Color(hex: "10B981").opacity(0.15) : Color(hex: "3B82F6").opacity(0.1))
+                        .frame(width: 80, height: 80)
+                    
+                    Image(systemName: hasModelAvailable ? "cube.fill" : "camera.viewfinder")
+                        .font(.system(size: 38))
+                        .foregroundColor(hasModelAvailable ? Color(hex: "10B981") : Color(hex: "3B82F6"))
+                }
+                
+                VStack(spacing: 8) {
+                    if hasModelAvailable {
+                        Text("3D Model Ready")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        Text(appModel.localModelURL != nil || modelURL != nil ? "Captured locally and ready to upload on save." : "Model is active on customer menu.")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                            .multilineTextAlignment(.center)
+                    } else {
+                        Text("No 3D Model Attached")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        Text("Capture your dish in 360° using Apple Object Capture photogrammetry.")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+            }
+            .padding(30)
+            .frame(maxWidth: .infinity)
+            .background(Color(hex: "1E293B"))
+            .cornerRadius(20)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(hasModelAvailable ? Color(hex: "10B981").opacity(0.3) : Color.white.opacity(0.1), lineWidth: 1)
+            )
+            
+            // 2. Action Buttons
+            if hasModelAvailable {
+                Button(action: {
+                    showModelPreview = true
+                }) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "arkit")
+                            .font(.system(size: 18, weight: .semibold))
+                        Text("View in 3D / AR")
+                            .font(.system(size: 16, weight: .bold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(Color(hex: "3B82F6"))
+                    .cornerRadius(12)
+                }
+                
+                Button(action: {
+                    showCaptureSetup = true
+                }) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "camera.viewfinder")
+                            .font(.system(size: 18, weight: .semibold))
+                        Text("Retake 3D Scan")
+                            .font(.system(size: 16, weight: .bold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(Color(hex: "1E293B"))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
+                }
+            } else {
+                Button(action: {
+                    showCaptureSetup = true
+                }) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 18, weight: .bold))
+                        Text("Start 3D Capture")
+                            .font(.system(size: 16, weight: .bold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(LinearGradient(colors: [Color(hex: "3B82F6"), Color(hex: "8B5CF6")], startPoint: .leading, endPoint: .trailing))
+                    .cornerRadius(12)
+                    .shadow(color: Color(hex: "3B82F6").opacity(0.4), radius: 12, x: 0, y: 6)
+                }
+            }
         }
     }
     
@@ -610,7 +776,8 @@ struct AddEditDishScreen: View {
             price: Double(price) ?? 0.0,
             category: category,
             imageURL: userReplacedImage ? finalImageURL : nil,
-            modelURL: nil // Let background handle it
+            modelURL: nil, // Let background handle it
+            status: status
         )
     }
     

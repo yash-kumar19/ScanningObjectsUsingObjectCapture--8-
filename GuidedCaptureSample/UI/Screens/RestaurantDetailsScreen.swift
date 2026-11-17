@@ -31,6 +31,9 @@ struct RestaurantDetailsScreenV2: View {
     @State private var selectedDishForAR: Dish?
     @State private var showARView = false
     
+    @State private var isLoading = true
+    @State private var selectedDishForDetail: Dish? = nil
+    
     // 3D Preview State (inline pattern from OwnerMenuScreen)
     @StateObject private var downloader = ModelDownloader()
     @State private var show3DPreview = false
@@ -173,6 +176,35 @@ struct RestaurantDetailsScreenV2: View {
                 }
             )
         }
+        .sheet(item: $selectedDishForDetail) { dish in
+            DishDetailSheet(
+                dish: dish,
+                onAddToCart: {
+                    handleAddToCart(dish)
+                },
+                onViewAR: {
+                    let modelURL = dish.model_url
+                    selectedDishForDetail = nil
+                    
+                    // Delay slightly to allow sheet to dismiss before presenting full screen cover
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        if let modelURL = modelURL,
+                           !modelURL.isEmpty,
+                           let url = URL(string: modelURL) {
+                            selected3DModelURL = url
+                            local3DModelURL = nil
+                            download3DError = nil
+                            show3DPreview = true
+                        }
+                    }
+                },
+                onDismiss: {
+                    selectedDishForDetail = nil
+                }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
         .sheet(isPresented: $showCustomerInfoSheet) {
             CustomerInfoSheet(
                 prefillName: customerNamePrefill,
@@ -233,30 +265,9 @@ struct RestaurantDetailsScreenV2: View {
                     })
                     .ignoresSafeArea()
                 } else if downloader.isDownloading {
-                    // Show download progress
-                    VStack(spacing: 20) {
-                        ProgressView(value: downloader.downloadProgress)
-                            .progressViewStyle(.linear)
-                            .tint(Color(hex: "3B82F6"))
-                            .frame(width: 200)
-                        
-                        Text("Downloading model...")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                        
-                        Text("\(Int(downloader.downloadProgress * 100))%")
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
-                        
-                        Button(action: { show3DPreview = false }) {
-                            Text("Cancel")
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 12)
-                                .background(Color(hex: "1E293B"))
-                                .cornerRadius(12)
-                        }
-                    }
+                    PremiumDownloadView(progress: downloader.downloadProgress, onCancel: {
+                        show3DPreview = false
+                    })
                 } else if let error = download3DError {
                     // Show error
                     VStack(spacing: 20) {
@@ -543,15 +554,32 @@ struct RestaurantDetailsScreenV2: View {
     
     private var dishList: some View {
         Group {
-            if dishes.isEmpty {
-                 VStack(spacing: 16) {
-                    Image(systemName: "fork.knife.circle")
-                        .font(.system(size: 48))
-                        .foregroundColor(Color.white.opacity(0.3))
-                    Text("No dishes available")
-                        .foregroundColor(Color.white.opacity(0.6))
+            if isLoading {
+                LazyVStack(spacing: 16) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        CustomerDishCardSkeleton()
+                    }
                 }
-                .padding(.vertical, 40)
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                .padding(.bottom, 140)
+            } else if dishes.isEmpty {
+                 VStack(spacing: 20) {
+                    Image(systemName: "fork.knife.circle")
+                        .font(.system(size: 54))
+                        .foregroundColor(Color.white.opacity(0.3))
+                     
+                    Text("No dishes available yet")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.white)
+                     
+                    Text("This restaurant is still preparing its menu.")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color.white.opacity(0.5))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
+                .padding(.vertical, 80)
             } else if filteredDishes.isEmpty {
                  VStack(spacing: 16) {
                     Image(systemName: "magnifyingglass")
@@ -574,6 +602,9 @@ struct RestaurantDetailsScreenV2: View {
                             hasModel: (dish.model_url?.isEmpty == false),
                             onAddToCart: {
                                 handleAddToCart(dish)
+                            },
+                            onClick: {
+                                selectedDishForDetail = dish
                             },
                             onViewAR: {
                                 // ✅ Trigger 3D Preview (inline pattern)
@@ -610,11 +641,15 @@ struct RestaurantDetailsScreenV2: View {
         }
     }
     
-    
-    
     private func loadData() async {
         print("🔄 loadData() called for restaurant: \(displayedRestaurant.name)")
         print("🔄 Owner ID: \(displayedRestaurant.owner_id)")
+        
+        await MainActor.run {
+            if dishes.isEmpty {
+                isLoading = true
+            }
+        }
         
         do {
             // Fetch dishes for this specific restaurant owner
@@ -628,14 +663,13 @@ struct RestaurantDetailsScreenV2: View {
             await MainActor.run {
                 self.dishes = allDishes
                 self.liveRestaurant = updatedRestaurant
+                self.isLoading = false
                 print("✅ UI updated with \(allDishes.count) dishes")
             }
         } catch {
             print("❌ Error fetching real-time data: \(error)")
-            print("❌ Error details: \(error.localizedDescription)")
-            if let urlError = error as? URLError {
-                print("❌ URLError code: \(urlError.code.rawValue)")
-                print("❌ URLError description: \(urlError.errorUserInfo)")
+            await MainActor.run {
+                self.isLoading = false
             }
         }
     }
@@ -685,6 +719,258 @@ struct InfoRow: View {
             Text(text)
                 .font(.system(size: 15))
                 .foregroundColor(Color.white.opacity(0.8))
+        }
+    }
+}
+
+// MARK: - Skeletons
+
+struct CustomerDishCardSkeleton: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            // Left Column: Text info
+            VStack(alignment: .leading, spacing: 8) {
+                // Category badge skeleton
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.white.opacity(0.1))
+                    .frame(width: 80, height: 14)
+                
+                // Title skeleton
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.white.opacity(0.1))
+                    .frame(width: 160, height: 20)
+                
+                // Price skeleton
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.white.opacity(0.1))
+                    .frame(width: 50, height: 16)
+                
+                // Description skeleton lines
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.white.opacity(0.1))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 12)
+                
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.white.opacity(0.1))
+                    .frame(width: 140, height: 12)
+            }
+            
+            Spacer()
+            
+            // Right Column: Image placeholder
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white.opacity(0.1))
+                .frame(width: 128, height: 128)
+                .padding(.bottom, 16) // Spacing to match card's padding
+        }
+        .padding(16)
+        .background(Color(hex: "0f172a"))
+        .cornerRadius(20)
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(Color.white.opacity(0.05), lineWidth: 1)
+        )
+        .skeleton(isLoading: true)
+    }
+}
+
+// MARK: - Dish Detail Bottom Sheet
+
+struct DishDetailSheet: View {
+    let dish: Dish
+    let onAddToCart: () -> Void
+    var onViewAR: (() -> Void)? = nil
+    var onDismiss: () -> Void
+    
+    var body: some View {
+        ZStack(alignment: .top) {
+            Theme.background.ignoresSafeArea()
+            
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    // Big Image Header
+                    ZStack(alignment: .topTrailing) {
+                        CachedAsyncImage(url: URL(string: dish.thumbnail_url ?? "")) { phase in
+                            switch phase {
+                            case .empty:
+                                Rectangle().fill(Color(hex: "1e293b"))
+                            case .success(let image):
+                                image.resizable().aspectRatio(contentMode: .fill)
+                            case .failure:
+                                Rectangle().fill(Color(hex: "1e293b"))
+                                    .overlay(
+                                        Image(systemName: "photo")
+                                            .font(.largeTitle)
+                                            .foregroundColor(.white.opacity(0.2))
+                                    )
+                            @unknown default:
+                                EmptyView()
+                            }
+                        }
+                        .frame(height: 200)
+                        .clipped()
+                        
+                        // Close Button
+                        Button(action: onDismiss) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(10)
+                                .background(Circle().fill(Color.black.opacity(0.5)))
+                        }
+                        .padding(.top, 16)
+                        .padding(.trailing, 16)
+                        
+                        // Floating 3D Badge on image
+                        if dish.model_url?.isEmpty == false {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arkit")
+                                    .font(.system(size: 10, weight: .bold))
+                                Text("3D VIEW ENABLED")
+                                    .font(.system(size: 9, weight: .bold))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color(hex: "8b5cf6"))
+                            .cornerRadius(8)
+                            .padding(16)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                        }
+                    }
+                    .frame(height: 200)
+                    
+                    VStack(alignment: .leading, spacing: 20) {
+                        // Category, Veg badge and 3D badge
+                        HStack(spacing: 8) {
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(dish.category.lowercased().contains("drink") || dish.category.lowercased().contains("bevrage") ? Color.blue : Color.green)
+                                    .frame(width: 8, height: 8)
+                                    .padding(3)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .stroke(dish.category.lowercased().contains("drink") || dish.category.lowercased().contains("bevrage") ? Color.blue.opacity(0.5) : Color.green.opacity(0.5), lineWidth: 1)
+                                    )
+                                
+                                Text(dish.category)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(Color.white.opacity(0.6))
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(8)
+                            
+                            if dish.model_url?.isEmpty == false {
+                                HStack(spacing: 4) {
+                                    Text("⭐ 3D Available")
+                                        .font(.system(size: 11, weight: .bold))
+                                }
+                                .foregroundColor(Color(hex: "f59e0b"))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color(hex: "f59e0b").opacity(0.12))
+                                .cornerRadius(8)
+                            }
+                        }
+                        .padding(.top, 8)
+                        
+                        // Name and Price
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(dish.name)
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundColor(.white)
+                            
+                            Text(String(format: "$%.2f", dish.price))
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(Color(hex: "60a5fa"))
+                        }
+                        
+                        Divider().background(Color.white.opacity(0.1))
+                        
+                        // Description
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Product Details")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.white)
+                            
+                            Text(dish.description ?? "No description available.")
+                                .font(.system(size: 15))
+                                .foregroundColor(Color.white.opacity(0.7))
+                                .lineSpacing(6)
+                        }
+                        
+                        Spacer(minLength: 120) // Space for floating ADD/AR button bar at bottom
+                    }
+                    .padding(24)
+                }
+            }
+            
+            // Bottom Sticky Action Bar
+            VStack {
+                Spacer()
+                
+                HStack(spacing: 12) {
+                    if dish.model_url?.isEmpty == false {
+                        Button(action: {
+                            onViewAR?()
+                        }) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "arkit")
+                                    .font(.system(size: 16, weight: .bold))
+                                Text("View in 3D")
+                                    .font(.system(size: 15, weight: .bold))
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 54)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color(hex: "8b5cf6"), Color(hex: "7c3aed")],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(16)
+                            .shadow(color: Color.purple.opacity(0.4), radius: 8)
+                        }
+                    }
+                    
+                    Button(action: onAddToCart) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 16, weight: .bold))
+                            Text("ADD TO CART")
+                                .font(.system(size: 15, weight: .bold))
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 54)
+                        .background(
+                            LinearGradient(
+                                colors: [Color(hex: "3b82f6"), Color(hex: "2563eb")],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(16)
+                        .shadow(color: Color.blue.opacity(0.4), radius: 8)
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 34)
+                .padding(.top, 20)
+                .background(
+                    LinearGradient(
+                        colors: [.clear, .black.opacity(0.8), .black],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+            }
+            .ignoresSafeArea()
         }
     }
 }

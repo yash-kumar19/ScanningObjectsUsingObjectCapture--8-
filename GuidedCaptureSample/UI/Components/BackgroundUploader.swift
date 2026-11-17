@@ -75,19 +75,27 @@ extension BackgroundUploader: URLSessionTaskDelegate, URLSessionDataDelegate {
               let data = desc.data(using: .utf8),
               let taskInfo = try? JSONDecoder().decode(UploadTaskInfo.self, from: data) else { return }
         
-        DispatchQueue.main.async {
-            self.activeUploads.removeValue(forKey: taskInfo.sessionId)
-        }
-        
         if let error = error {
             print("❌ Background upload failed for \(taskInfo.sessionId): \(error)")
             updateLocalQueueState(sessionId: taskInfo.sessionId, state: "failed")
+            DispatchQueue.main.async {
+                self.activeUploads.removeValue(forKey: taskInfo.sessionId)
+            }
             return
         }
         
         let httpResponse = task.response as? HTTPURLResponse
         if let status = httpResponse?.statusCode, (200...299).contains(status) {
             let publicURL = "\(SupabaseConfig.url)/storage/v1/object/public/\(taskInfo.bucket)/\(taskInfo.objectPath)"
+            
+            // ⚠️ IMPORTANT: Update UserDefaults state BEFORE removing from activeUploads
+            // This prevents a race where the UI sees no activeUpload entry + old "uploading" state
+            updateLocalQueueState(sessionId: taskInfo.sessionId, state: "processing")
+            
+            // Now safe to remove from activeUploads — UserDefaults already shows "processing"
+            DispatchQueue.main.async {
+                self.activeUploads.removeValue(forKey: taskInfo.sessionId)
+            }
             
             Task {
                 do {
@@ -97,6 +105,12 @@ extension BackgroundUploader: URLSessionTaskDelegate, URLSessionDataDelegate {
                         intendedStatus: taskInfo.intendedStatus
                     )
                     
+                    // Trigger edge function to generate GLB for web & Android AR
+                    await SupabaseManager.shared.triggerModelConversion(
+                        dishId: taskInfo.dishId,
+                        modelURL: publicURL
+                    )
+                    
                     let fileURL = URL(fileURLWithPath: taskInfo.fileURLPath)
                     try? FileManager.default.removeItem(at: fileURL)
                     
@@ -104,17 +118,32 @@ extension BackgroundUploader: URLSessionTaskDelegate, URLSessionDataDelegate {
                     let imagesURL = fileURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Images")
                     try? FileManager.default.removeItem(at: imagesURL)
                     
-                    removeFromLocalQueue(sessionId: taskInfo.sessionId)
+                    // Clean up local uploader queue from UserDefaults since DB update succeeded
+                    self.removeFromLocalQueue(sessionId: taskInfo.sessionId)
                     
                     print("✅ Background upload and DB update complete for \(taskInfo.dishId)")
+                    
+                    // Post notification to reload menu screen on main thread
+                    await MainActor.run {
+                        NotificationCenter.default.post(name: Notification.Name("supabaseDataDidUpdate"), object: nil)
+                    }
                 } catch {
                     print("❌ Failed to update DB after background upload: \(error)")
                     updateLocalQueueState(sessionId: taskInfo.sessionId, state: "failed_db")
+                    
+                    await MainActor.run {
+                        NotificationCenter.default.post(name: Notification.Name("supabaseDataDidUpdate"), object: nil)
+                    }
                 }
             }
         } else {
              print("❌ Background upload failed with HTTP status: \(httpResponse?.statusCode ?? -1)")
              updateLocalQueueState(sessionId: taskInfo.sessionId, state: "failed")
+             
+             DispatchQueue.main.async {
+                 self.activeUploads.removeValue(forKey: taskInfo.sessionId)
+                 NotificationCenter.default.post(name: Notification.Name("supabaseDataDidUpdate"), object: nil)
+             }
         }
     }
     

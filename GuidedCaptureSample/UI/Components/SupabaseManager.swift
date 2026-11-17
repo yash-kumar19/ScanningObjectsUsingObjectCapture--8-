@@ -13,7 +13,15 @@ class SupabaseManager: ObservableObject {
     
     @Published var isAuthenticated = false
     @Published var currentUser: User?
-    @Published var userRole: String?
+    @Published var userRole: String? {
+        didSet {
+            if let role = userRole {
+                UserDefaults.standard.set(role, forKey: "supabase_user_role")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "supabase_user_role")
+            }
+        }
+    }
     @Published var loginIntent: LoginIntent = .none
     @Published var isRestoringSession = false
     
@@ -89,7 +97,11 @@ class SupabaseManager: ObservableObject {
             return
         }
         
-        self.isRestoringSession = true
+        // Synchronously load cached userRole to prevent visual blocking on startup
+        self.userRole = UserDefaults.standard.string(forKey: "supabase_user_role")
+        
+        // If userRole is already cached, do not block the UI with the restoration screen
+        self.isRestoringSession = self.userRole == nil
         self.accessToken = token
         
         // Restore user data
@@ -97,7 +109,7 @@ class SupabaseManager: ObservableObject {
            let user = try? JSONDecoder().decode(User.self, from: userData) {
             self.currentUser = user
             self.isAuthenticated = true
-            print("Session restored for user: \(user.email ?? "unknown")")
+            print("Session restored for user: \(user.email ?? "unknown"), role: \(self.userRole ?? "none")")
             
             // Refresh user data and role in background
             Task {
@@ -134,6 +146,7 @@ class SupabaseManager: ObservableObject {
         KeychainManager.shared.delete(forKey: accessTokenKey)
         KeychainManager.shared.delete(forKey: refreshTokenKey)
         UserDefaults.standard.removeObject(forKey: userDataKey)
+        UserDefaults.standard.removeObject(forKey: "supabase_user_role")
         self.accessToken = nil
         self.refreshToken = nil
         self.currentUser = nil
@@ -194,7 +207,7 @@ class SupabaseManager: ObservableObject {
         
         let url = SupabaseConfig.authURL.appendingPathComponent("token").appending(queryItems: [URLQueryItem(name: "grant_type", value: "refresh_token")])
         
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
         request.httpMethod = "POST"
         request.addValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -530,7 +543,7 @@ class SupabaseManager: ObservableObject {
     func uploadImage(data: Data, name: String) async throws -> String {
         let token = try await getValidAccessTokenOrRefresh()
         
-        let path = "images/\(name).jpg"
+        let path = "dish-images/\(name).jpg"
         let url = SupabaseConfig.storageURL.appendingPathComponent("object").appendingPathComponent(path)
         
         var request = URLRequest(url: url)
@@ -564,7 +577,7 @@ class SupabaseManager: ObservableObject {
         if let thumbData = createThumbnail(from: data) {
             Task {
                 do {
-                    let thumbPath = "images/\(name)_thumb.jpg"
+                    let thumbPath = "dish-images/\(name)_thumb.jpg"
                     let thumbUrl = SupabaseConfig.storageURL.appendingPathComponent("object").appendingPathComponent(thumbPath)
                     var thumbRequest = URLRequest(url: thumbUrl)
                     thumbRequest.httpMethod = "POST"
@@ -619,6 +632,12 @@ struct SupabaseErrorResponse: Codable {
     let message: String?
 }
 
+struct StorageDeletionResult: Codable {
+    let file: String
+    let success: Bool
+    let error: String?
+}
+
 // MARK: - Dish Model (matches Supabase schema)
 
 struct Dish: Codable, Identifiable {
@@ -640,6 +659,9 @@ struct Dish: Codable, Identifiable {
     let display_order: Int?
     let intended_status: String?
     let conversion_started_at: String?
+    let model_glb_url: String?
+    let model_conversion_status: String?
+    let status: String?
     
     enum CodingKeys: String, CodingKey {
         case id, created_at, updated_at, restaurant_id, name, description, price, category
@@ -653,6 +675,9 @@ struct Dish: Codable, Identifiable {
         case polygon_count
         case intended_status
         case conversion_started_at
+        case model_glb_url
+        case model_conversion_status
+        case status
     }
 }
 
@@ -696,6 +721,7 @@ extension SupabaseManager {
             .appending(queryItems: [
                 URLQueryItem(name: "restaurant_id", value: "eq.\(ownerId)"),
                 URLQueryItem(name: "is_active", value: "eq.true"),  // Filter soft-deleted dishes
+                URLQueryItem(name: "status", value: "eq.published"), // Only published dishes
                 URLQueryItem(name: "order", value: "created_at.desc")
             ])
         
@@ -734,7 +760,6 @@ extension SupabaseManager {
     func fetchOwnerDishes() async throws -> [Dish] {
         let url = SupabaseConfig.databaseURL.appendingPathComponent("dishes")
             .appending(queryItems: [
-                URLQueryItem(name: "is_active", value: "eq.true"),  // Filter soft-deleted dishes
                 URLQueryItem(name: "order", value: "created_at.desc")
             ])
         
@@ -995,6 +1020,240 @@ extension SupabaseManager {
     print("✅ Dish soft-deleted successfully (id: \(id))")
     }
     
+    /// Restore a soft-deleted dish (sets is_active to true)
+    func restoreDish(id: String) async throws {
+        let token = try await getValidAccessTokenOrRefresh()
+        
+        let url = SupabaseConfig.databaseURL.appendingPathComponent("dishes")
+            .appending(queryItems: [URLQueryItem(name: "id", value: "eq.\(id)")])
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.addValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body: [String: Any] = [
+            "is_active": true
+        ]
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        
+        if !(200...299).contains(httpResponse.statusCode) {
+            let errorString: String
+            if let jsonError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data) {
+                errorString = jsonError.message ?? jsonError.error ?? "Unknown Error"
+            } else {
+                errorString = String(data: data, encoding: .utf8) ?? "<non-utf8 body>"
+            }
+            print("❌ restoreDish failed [\(httpResponse.statusCode)]: \(errorString)")
+            throw SupabaseAPIError(statusCode: httpResponse.statusCode, message: errorString)
+        }
+        
+        print("✅ Dish restored successfully (id: \(id))")
+    }
+
+    /// Helper to delete a file from Supabase storage using Storage API v1
+    func deleteStorageFile(bucket: String, path: String) async throws {
+        let token = try await getValidAccessTokenOrRefresh()
+        
+        let url = SupabaseConfig.storageURL
+            .appendingPathComponent("object")
+            .appendingPathComponent(bucket)
+            
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.addValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body = ["prefixes": [path]]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        
+        if !(200...299).contains(httpResponse.statusCode) {
+            let errorString = String(data: data, encoding: .utf8) ?? "Unknown Error"
+            print("❌ deleteStorageFile failed [\(httpResponse.statusCode)]: \(errorString)")
+            throw SupabaseAPIError(statusCode: httpResponse.statusCode, message: errorString)
+        }
+        print("✅ Deleted storage file from \(bucket): \(path)")
+    }
+
+    /// Parses bucket and path from a public Supabase URL
+    private func parseStorageURL(_ urlString: String) -> (bucket: String, path: String)? {
+        let prefix = "\(SupabaseConfig.url)/storage/v1/object/public/"
+        guard urlString.hasPrefix(prefix) else { return nil }
+        
+        let relativePath = String(urlString.dropFirst(prefix.count))
+        let parts = relativePath.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: true)
+        guard parts.count == 2 else { return nil }
+        
+        return (bucket: String(parts[0]), path: String(parts[1]))
+    }
+
+    /// Helper to delete multiple files from Supabase storage using Storage API v1
+    func deleteStorageFiles(bucket: String, paths: [String]) async throws {
+        guard !paths.isEmpty else { return }
+        
+        let token = try await getValidAccessTokenOrRefresh()
+        
+        let url = SupabaseConfig.storageURL
+            .appendingPathComponent("object")
+            .appendingPathComponent(bucket)
+            
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.addValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body = ["prefixes": paths]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        
+        if !(200...299).contains(httpResponse.statusCode) {
+            let errorString = String(data: data, encoding: .utf8) ?? "Unknown Error"
+            print("❌ deleteStorageFiles failed [\(httpResponse.statusCode)]: \(errorString)")
+            throw SupabaseAPIError(statusCode: httpResponse.statusCode, message: errorString)
+        }
+        print("✅ Deleted storage files from \(bucket): \(paths)")
+    }
+
+    /// Helper to cleanup storage assets for a dish in parallel
+    func cleanupStorageFiles(for dish: Dish) async throws -> [StorageDeletionResult] {
+        var urlsToDelete: [String] = []
+        if let model3D = dish.model_url, !model3D.isEmpty {
+            urlsToDelete.append(model3D)
+        }
+        if let modelGLB = dish.model_glb_url, !modelGLB.isEmpty {
+            urlsToDelete.append(modelGLB)
+        }
+        if let mainImage = dish.thumbnail_url, !mainImage.isEmpty {
+            urlsToDelete.append(mainImage)
+            
+            // Also append predicted thumbnail path if it is a standard uploadImage thumbnail
+            let prefix = "\(SupabaseConfig.url)/storage/v1/object/public/"
+            if mainImage.hasPrefix(prefix) {
+                let relativePath = String(mainImage.dropFirst(prefix.count))
+                if relativePath.hasSuffix(".jpg") {
+                    let thumbURL = mainImage.replacingOccurrences(of: ".jpg", with: "_thumb.jpg")
+                    urlsToDelete.append(thumbURL)
+                } else if relativePath.hasSuffix(".jpeg") {
+                    let thumbURL = mainImage.replacingOccurrences(of: ".jpeg", with: "_thumb.jpeg")
+                    urlsToDelete.append(thumbURL)
+                } else if relativePath.hasSuffix(".png") {
+                    let thumbURL = mainImage.replacingOccurrences(of: ".png", with: "_thumb.png")
+                    urlsToDelete.append(thumbURL)
+                }
+            }
+        }
+        
+        // Group paths by bucket
+        var bucketToPaths: [String: [String]] = [:]
+        for urlString in urlsToDelete {
+            if let parsed = parseStorageURL(urlString) {
+                bucketToPaths[parsed.bucket, default: []].append(parsed.path)
+            }
+        }
+        
+        var deletionResults: [StorageDeletionResult] = []
+        
+        // Perform deletes in parallel by bucket using TaskGroup
+        await withTaskGroup(of: (String, [String], Bool, String?).self) { group in
+            for (bucket, paths) in bucketToPaths {
+                group.addTask {
+                    do {
+                        try await self.deleteStorageFiles(bucket: bucket, paths: paths)
+                        return (bucket, paths, true, nil)
+                    } catch {
+                        return (bucket, paths, false, error.localizedDescription)
+                    }
+                }
+            }
+            
+            while let result = await group.next() {
+                let (bucket, paths, success, err) = result
+                for path in paths {
+                    let reconstructedURL = "\(SupabaseConfig.url)/storage/v1/object/public/\(bucket)/\(path)"
+                    deletionResults.append(StorageDeletionResult(file: reconstructedURL, success: success, error: err))
+                }
+            }
+        }
+        
+        return deletionResults
+    }
+
+    /// Resilient hard delete of a dish by fetching metadata first (Backwards compatibility)
+    @discardableResult
+    func hardDeleteDish(id: String) async throws -> [StorageDeletionResult] {
+        let dish = try await fetchDishById(id: id)
+        return try await hardDeleteDish(dish: dish)
+    }
+
+    /// Resilient hard delete of a dish by deleting DB row first, then cleaning up storage in background
+    @discardableResult
+    func hardDeleteDish(dish: Dish) async throws -> [StorageDeletionResult] {
+        // 1. Delete the database row first to immediately remove the item from client query results
+        let token = try await getValidAccessTokenOrRefresh()
+        let url = SupabaseConfig.databaseURL.appendingPathComponent("dishes")
+            .appending(queryItems: [URLQueryItem(name: "id", value: "eq.\(dish.id)")])
+            
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.addValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        
+        if !(200...299).contains(httpResponse.statusCode) {
+            let errorString = String(data: data, encoding: .utf8) ?? "Unknown DB error"
+            print("❌ hardDeleteDish DB deletion failed [\(httpResponse.statusCode)]: \(errorString)")
+            throw SupabaseAPIError(statusCode: httpResponse.statusCode, message: errorString)
+        }
+        
+        print("✅ DB row deleted successfully for dish (id: \(dish.id))")
+        
+        // 2. Launch storage cleanup in the background asynchronously
+        Task {
+            do {
+                let results = try await self.cleanupStorageFiles(for: dish)
+                print("✅ Background storage cleanup completed for '\(dish.name)':")
+                for res in results {
+                    if res.success {
+                        print("  - Storage file deleted: \(res.file)")
+                    } else {
+                        print("  - ⚠️ Storage file deletion failed: \(res.file) - Error: \(res.error ?? "Unknown")")
+                    }
+                }
+            } catch {
+                print("⚠️ Background storage cleanup failed: \(error.localizedDescription)")
+            }
+        }
+        
+        // Return empty array immediately so the UI is unblocked
+        return []
+    }
+    
     func updateDishPostBackgroundUpload(dishId: String, modelURL: String, intendedStatus: String) async throws {
         let token = try await getValidAccessTokenOrRefresh()
         
@@ -1007,12 +1266,14 @@ extension SupabaseManager {
         request.addValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        // Let the DB trigger handle updating `status` based on `intended_status`
-        // We only update model url, generation status, intended status, and timestamp.
+        // Directly promote status to intended status so it is immediately visible
+        // while conversion is running. Badge logic will indicate processing.
         let body: [String: Any] = [
             "model_3d_url": modelURL,
             "generation_status": "pending",
+            "model_conversion_status": "pending",
             "intended_status": intendedStatus,
+            "status": intendedStatus,
             "conversion_started_at": ISO8601DateFormatter().string(from: Date())
         ]
         
@@ -1030,6 +1291,38 @@ extension SupabaseManager {
         }
     }
     
+    /// Trigger edge function to convert USDZ to GLB for web & Android AR
+    func triggerModelConversion(dishId: String, modelURL: String) async {
+        do {
+            let token = try await getValidAccessTokenOrRefresh()
+            let functionURL = URL(string: "\(SupabaseConfig.url)/functions/v1/process-model")!
+            var request = URLRequest(url: functionURL)
+            request.httpMethod = "POST"
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.addValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+            request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+            
+            let payload: [String: Any] = [
+                "type": "UPDATE",
+                "table": "dishes",
+                "record": [
+                    "id": dishId,
+                    "model_3d_url": modelURL,
+                    "model_conversion_status": "pending"
+                ],
+                "schema": "public",
+                "old_record": NSNull()
+            ]
+            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+            let (_, response) = try await URLSession.shared.data(for: request)
+            if let httpRes = response as? HTTPURLResponse {
+                print("🔄 [process-model] Edge function response: \(httpRes.statusCode)")
+            }
+        } catch {
+            print("⚠️ [process-model] Failed to trigger conversion: \(error)")
+        }
+    }
+    
     /// Update dish with partial data (only sends changed fields)
     /// Prevents accidental overwrites of model/image during edits
     func updateDishPartial(
@@ -1040,7 +1333,9 @@ extension SupabaseManager {
         category: String? = nil,
         imageURL: String? = nil,
         modelURL: String? = nil,
-        generationStatus: String? = nil
+        generationStatus: String? = nil,
+        modelConversionStatus: String? = nil,
+        status: String? = nil
     ) async throws {
         let token = try await getValidAccessTokenOrRefresh()
         
@@ -1054,6 +1349,7 @@ extension SupabaseManager {
         if let price = price { body["price"] = price }
         if let category = category { body["category"] = category }
         if let imageURL = imageURL { body["image_url"] = imageURL }
+        if let status = status { body["status"] = status }
         
         // 🛡️ SAFETY: Respect generation_status to prevent race conditions
         if let modelURL = modelURL {
@@ -1073,6 +1369,10 @@ extension SupabaseManager {
         
         if let generationStatus = generationStatus {
             body["generation_status"] = generationStatus
+        }
+        
+        if let modelConversionStatus = modelConversionStatus {
+            body["model_conversion_status"] = modelConversionStatus
         }
         
         // Note: updated_at column doesn't exist in current schema
@@ -1614,23 +1914,30 @@ extension SupabaseManager {
                 URLQueryItem(name: "owner_id", value: "eq.\(userId)")
             ])
         
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: url, timeoutInterval: 15.0)
         request.httpMethod = "GET"
         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.addValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
         
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let httpResponse = response as? HTTPURLResponse {
-                let body = String(data: data, encoding: .utf8) ?? ""
-                print("❌ fetchOwnerRestaurant failed with status \(httpResponse.statusCode): \(body)")
-            }
+        guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            let errorMsg: String
+            if let jsonError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data) {
+                errorMsg = jsonError.message ?? jsonError.error ?? "Unknown Error"
+            } else {
+                errorMsg = String(data: data, encoding: .utf8) ?? "Bad server response"
+            }
+            print("❌ fetchOwnerRestaurant failed with status \(httpResponse.statusCode): \(errorMsg)")
+            throw SupabaseAPIError(statusCode: httpResponse.statusCode, message: errorMsg)
         }
         
         let restaurants = try JSONDecoder().decode([Restaurant].self, from: data)
         guard let restaurant = restaurants.first else {
-            throw URLError(.resourceUnavailable)
+            throw SupabaseAPIError(statusCode: 404, message: "Restaurant profile not found. Please complete onboarding.")
         }
         return restaurant
     }

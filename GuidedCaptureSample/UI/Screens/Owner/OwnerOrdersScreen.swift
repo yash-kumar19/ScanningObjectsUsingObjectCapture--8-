@@ -19,6 +19,7 @@ struct OwnerOrdersScreen: View {
     @State private var currentOffset = 0
     @State private var hasMoreOrders = true
     @State private var fetchTask: Task<Void, Never>? = nil
+    @State private var showSyncWarning = false
 
     @ObservedObject private var supabase = SupabaseManager.shared
 
@@ -72,6 +73,27 @@ struct OwnerOrdersScreen: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 24)
                 .padding(.bottom, 20)
+
+                if showSyncWarning {
+                    HStack(spacing: 8) {
+                        Image(systemName: "wifi.exclamationmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.orange)
+                        Text("Syncing issue. Showing cached orders.")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.orange.opacity(0.12))
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule().stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 12)
+                }
 
                 // Segmented Control
                 OwnerOrderSegmentedControl(
@@ -136,13 +158,18 @@ struct OwnerOrdersScreen: View {
         }
         .onAppear {
             liveDot = true
+            OwnerOrderManager.shared.isOrdersScreenVisible = true
             loadOrders(isInitial: true)
-            pollingManager.startPolling(interval: 5.0) {
-                pollUpdatedOrders()
-            }
         }
         .onDisappear {
-            pollingManager.stopPolling()
+            OwnerOrderManager.shared.isOrdersScreenVisible = false
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .didReceiveOwnerOrders)) { notification in
+            if let fetchedOrders = notification.userInfo?["orders"] as? [Order] {
+                withAnimation {
+                    self.orders = fetchedOrders
+                }
+            }
         }
         .sheet(item: $selectedOrder) { order in
             OwnerOrderDetailSheet(
@@ -179,8 +206,7 @@ struct OwnerOrdersScreen: View {
                         self.orders = fetched
                         
                         // Initialize lastPollTime safely from the returned payload
-                        let formatter = ISO8601DateFormatter()
-                        if let maxDate = fetched.compactMap({ $0.updated_at }).compactMap({ formatter.date(from: $0) }).max() {
+                        if let maxDate = fetched.compactMap({ $0.updated_at }).compactMap({ ISO8601DateFormatter.parse($0) }).max() {
                             self.lastPollTime = maxDate
                         } else {
                             self.lastPollTime = Date()
@@ -190,12 +216,21 @@ struct OwnerOrdersScreen: View {
                         self.orders.append(contentsOf: fetched)
                     }
                     
+                    OwnerOrderManager.shared.didFetchOrders(self.orders)
+                    self.showSyncWarning = false
                     self.hasMoreOrders = fetched.count == 50
                     self.isLoading = false
+                    self.isLoadingMore = false
                 }
             } catch {
                 if Task.isCancelled { return }
-                await MainActor.run { self.isLoading = false }
+                await MainActor.run {
+                    self.isLoading = false
+                    self.isLoadingMore = false
+                    if !self.orders.isEmpty {
+                        self.showSyncWarning = true
+                    }
+                }
                 print("❌ [OwnerOrders] Error fetching: \(error)")
             }
         }
@@ -206,10 +241,7 @@ struct OwnerOrdersScreen: View {
         isLoadingMore = true
         currentOffset += 50
         
-        Task {
-            await loadOrders(isInitial: false)
-            await MainActor.run { self.isLoadingMore = false }
-        }
+        loadOrders(isInitial: false)
     }
     
     private func pollUpdatedOrders() {
@@ -218,6 +250,11 @@ struct OwnerOrdersScreen: View {
         Task {
             do {
                 let updated = try await supabase.fetchUpdatedOrders(restaurantId: restaurantId, since: lastPoll)
+                
+                await MainActor.run {
+                    self.showSyncWarning = false
+                }
+                
                 guard !updated.isEmpty else { return }
                 
                 await MainActor.run {
@@ -232,21 +269,24 @@ struct OwnerOrdersScreen: View {
                     }
                     
                     // Sort by created_at desc
-                    let formatter = ISO8601DateFormatter()
                     newOrders.sort {
-                        let d1 = formatter.date(from: $0.created_at) ?? Date.distantPast
-                        let d2 = formatter.date(from: $1.created_at) ?? Date.distantPast
+                        let d1 = ISO8601DateFormatter.parse($0.created_at) ?? Date.distantPast
+                        let d2 = ISO8601DateFormatter.parse($1.created_at) ?? Date.distantPast
                         return d1 > d2
                     }
                     
                     self.orders = newOrders
+                    OwnerOrderManager.shared.didFetchOrders(newOrders)
                     
-                    if let maxDate = updated.compactMap({ $0.updated_at }).compactMap({ formatter.date(from: $0) }).max() {
+                    if let maxDate = updated.compactMap({ $0.updated_at }).compactMap({ ISO8601DateFormatter.parse($0) }).max() {
                         self.lastPollTime = maxDate
                     }
                 }
             } catch {
                 print("❌ [OwnerOrders] Error polling delta: \(error)")
+                await MainActor.run {
+                    self.showSyncWarning = true
+                }
             }
         }
     }
@@ -259,7 +299,7 @@ struct OwnerOrdersScreen: View {
                     if selectedOrder?.id == order.id {
                         selectedOrder = nil
                     }
-                    loadOrders()
+                    loadOrders(isInitial: true)
                 }
             } catch {
                 print("❌ [OwnerOrders] Status update error: \(error)")
@@ -275,45 +315,48 @@ struct OwnerOrderSegmentedControl: View {
     let liveCount: Int
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 4) {
             ForEach(OwnerOrdersScreen.OrderTab.allCases, id: \.self) { tab in
                 let isSelected = selectedTab == tab
 
                 Button {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                         selectedTab = tab
                     }
                 } label: {
-                    VStack(spacing: 4) {
+                    HStack(spacing: 8) {
                         Text(tab.rawValue)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(isSelected ? .white : .white.opacity(0.5))
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(isSelected ? .white : .white.opacity(0.6))
+                        
                         if tab == .live {
-                            Text("(\(liveCount))")
-                                .font(.system(size: 13, weight: .regular))
-                                .foregroundColor(isSelected ? .white.opacity(0.8) : .white.opacity(0.35))
-                        } else {
-                            Text(" ")
-                                .font(.system(size: 13, weight: .regular))
+                            Text("\(liveCount)")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(isSelected ? Color(hex: "2b7fff") : .white.opacity(0.5))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(isSelected ? .white : Color.white.opacity(0.08))
+                                .clipShape(Capsule())
                         }
                     }
                     .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
                     .padding(.vertical, 12)
                     .background(
                         isSelected
                         ? LinearGradient(colors: [Color(hex: "2b7fff"), Color(hex: "1a5fd9")], startPoint: .leading, endPoint: .trailing)
                         : LinearGradient(colors: [Color.clear, Color.clear], startPoint: .leading, endPoint: .trailing)
                     )
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(4)
         .background(Color(hex: "1e293b"))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color.white.opacity(0.08), lineWidth: 1)
         )
     }
@@ -328,7 +371,7 @@ struct OwnerOrderCard: View {
     var onViewDetail: () -> Void
 
     var timeAgo: String {
-        guard let date = ISO8601DateFormatter().date(from: order.created_at) else {
+        guard let date = ISO8601DateFormatter.parse(order.created_at) else {
             return "Just now"
         }
         let diff = Date().timeIntervalSince(date)
@@ -410,6 +453,35 @@ struct OwnerOrderCard: View {
                 }
             }
 
+            // Special notes (Kitchen Note)
+            if let notes = order.special_notes, !notes.isEmpty {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "note.text")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color(hex: "facc15"))
+                        .padding(.top, 2)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("KITCHEN NOTE")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(Color(hex: "facc15").opacity(0.8))
+                            .kerning(0.5)
+                        Text(notes)
+                            .font(.system(size: 13))
+                            .foregroundColor(.white.opacity(0.9))
+                            .multilineTextAlignment(.leading)
+                    }
+                    Spacer()
+                }
+                .padding(10)
+                .background(Color(hex: "facc15").opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color(hex: "facc15").opacity(0.2), lineWidth: 1)
+                )
+            }
+
             // Action buttons
             VStack(spacing: 12) {
                 if isPendingOrReceived {
@@ -421,6 +493,7 @@ struct OwnerOrderCard: View {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
                         .padding(.vertical, 14)
                         .background(
                             LinearGradient(colors: [Color(hex: "2b7fff"), Color(hex: "1a5fd9")], startPoint: .leading, endPoint: .trailing)
@@ -437,6 +510,7 @@ struct OwnerOrderCard: View {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
                         .padding(.vertical, 14)
                         .background(
                             LinearGradient(colors: [Color(hex: "22c55e"), Color(hex: "16a34a")], startPoint: .leading, endPoint: .trailing)
@@ -447,11 +521,21 @@ struct OwnerOrderCard: View {
                 }
 
                 Button(action: onViewDetail) {
-                    Text("View Details →")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.white.opacity(0.55))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
+                    HStack(spacing: 6) {
+                        Text("View Details")
+                        Image(systemName: "arrow.right")
+                    }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.8))
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
+                    .padding(.vertical, 12)
+                    .background(Color.white.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    )
                 }
                 .buttonStyle(.plain)
             }
@@ -514,7 +598,7 @@ struct OwnerOrderDetailSheet: View {
     }
 
     var timeAgo: String {
-        guard let date = ISO8601DateFormatter().date(from: order.created_at) else { return "Just now" }
+        guard let date = ISO8601DateFormatter.parse(order.created_at) else { return "Just now" }
         let diff = Date().timeIntervalSince(date)
         if diff < 60 { return "Just now" }
         let mins = Int(diff / 60)
@@ -522,7 +606,7 @@ struct OwnerOrderDetailSheet: View {
     }
 
     var formattedTime: String {
-        guard let date = ISO8601DateFormatter().date(from: order.created_at) else { return "" }
+        guard let date = ISO8601DateFormatter.parse(order.created_at) else { return "" }
         let fmt = DateFormatter()
         fmt.timeStyle = .short
         return fmt.string(from: date)
@@ -771,6 +855,7 @@ struct OwnerOrderDetailSheet: View {
                                     .font(.system(size: 16, weight: .semibold))
                                     .foregroundColor(.white)
                                     .frame(maxWidth: .infinity)
+                                    .contentShape(Rectangle())
                                     .padding(.vertical, 16)
                                     .background(Color.white.opacity(0.08))
                                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -786,6 +871,7 @@ struct OwnerOrderDetailSheet: View {
                                     .font(.system(size: 16, weight: .bold))
                                     .foregroundColor(.white)
                                     .frame(maxWidth: .infinity)
+                                    .contentShape(Rectangle())
                                     .padding(.vertical, 16)
                                     .background(
                                         LinearGradient(colors: [Color(hex: "2b7fff"), Color(hex: "1a5fd9")], startPoint: .leading, endPoint: .trailing)
@@ -804,6 +890,7 @@ struct OwnerOrderDetailSheet: View {
                                 .font(.system(size: 16, weight: .bold))
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
+                                .contentShape(Rectangle())
                                 .padding(.vertical, 16)
                                 .background(
                                     LinearGradient(colors: [Color(hex: "22c55e"), Color(hex: "16a34a")], startPoint: .leading, endPoint: .trailing)

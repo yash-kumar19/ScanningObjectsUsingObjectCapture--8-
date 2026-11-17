@@ -92,9 +92,14 @@ struct Order: Decodable, Identifiable {
         // Handle customer_id (not present in orders table v2, fallback to empty)
         self.customer_id = (try? container.decode(String.self, forKey: .customer_id)) ?? ""
         
-        self.restaurant_id = try container.decode(String.self, forKey: .restaurant_id)
+        self.restaurant_id = (try? container.decode(String.self, forKey: .restaurant_id)) ?? ""
         self.restaurant_name = try container.decodeIfPresent(String.self, forKey: .restaurant_name)
-        self.status = try container.decode(OrderStatus.self, forKey: .status)
+        if let statusStr = try? container.decode(String.self, forKey: .status),
+           let parsedStatus = OrderStatus(rawValue: statusStr) {
+            self.status = parsedStatus
+        } else {
+            self.status = .placed
+        }
         self.payment_method = (try? container.decode(PaymentMethod.self, forKey: .payment_method)) ?? .cash
         
         // Decode total/total_amount
@@ -125,7 +130,7 @@ struct Order: Decodable, Identifiable {
 struct OrderItem: Codable, Identifiable {
     let id: String
     let order_id: String
-    let dish_id: String
+    let dish_id: String?
     let name: String
     let price: Double  // Locked price at time of order
     let quantity: Int
@@ -210,6 +215,25 @@ enum PaymentMethod: String, Codable {
         switch self {
         case .cash: return "banknote.fill"
         }
+    }
+}
+
+// MARK: - ISO8601DateFormatter Extension
+
+extension ISO8601DateFormatter {
+    private static let shared: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        return formatter
+    }()
+    
+    private static let sharedWithFractional: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+    
+    static func parse(_ dateString: String) -> Date? {
+        sharedWithFractional.date(from: dateString) ?? shared.date(from: dateString)
     }
 }
 

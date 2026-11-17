@@ -38,11 +38,7 @@ struct HomeView: View {
                                 .skeleton(isLoading: isLoading)
                             
                             // Restaurants Section
-                             // Since we don't have real data wired for the Home Tab widgets yet (except Search),
-                             // we leave this as is or we can wire it later.
-                             // For now, let's keep it mock or static to avoid breaking visuals.
                             restaurantsSection
-                                .skeleton(isLoading: isLoading)
                             
                             // Why 3D Menus Section
                             why3DMenusSection
@@ -306,7 +302,11 @@ struct HomeView: View {
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
-                    if restaurants.isEmpty {
+                    if isLoading {
+                        ForEach(0..<3, id: \.self) { _ in
+                            RestaurantCardSkeleton()
+                        }
+                    } else if restaurants.isEmpty {
                         RestaurantCard(
                             id: "placeholder",
                             name: "No Active Restaurants",
@@ -470,8 +470,13 @@ struct HomeView: View {
     private func loadHomeData() {
         isLoading = true
         Task {
+            let startTime = Date()
             do {
                 let items = try await SupabaseManager.shared.fetchRestaurants()
+                let elapsed = Date().timeIntervalSince(startTime)
+                if elapsed < 0.6 {
+                    try? await Task.sleep(nanoseconds: UInt64((0.6 - elapsed) * 1_000_000_000))
+                }
                 await MainActor.run {
                     self.restaurants = items
                     withAnimation {
@@ -480,6 +485,10 @@ struct HomeView: View {
                 }
             } catch {
                 print("❌ Error loading restaurants: \(error)")
+                let elapsed = Date().timeIntervalSince(startTime)
+                if elapsed < 0.6 {
+                    try? await Task.sleep(nanoseconds: UInt64((0.6 - elapsed) * 1_000_000_000))
+                }
                 await MainActor.run {
                     withAnimation {
                         self.isLoading = false

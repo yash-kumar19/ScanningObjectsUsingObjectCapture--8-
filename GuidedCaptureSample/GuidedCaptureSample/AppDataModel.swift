@@ -248,22 +248,23 @@ extension AppDataModel {
             fatalError("Logic error")
         }
 
+        // ObjectCaptureSession properties are MainActor-isolated, so we must use
+        // a Task bound to the MainActor. Using `@MainActor` guarantees the closure
+        // executes correctly on the main thread, satisfying RealityKit and preventing
+        // the GCD memory corruption crash that DispatchQueue.main.async caused.
         tasks.append(
-            Task<Void, Never> { [weak self] in
+            Task { @MainActor [weak self] in
                 for await newFeedback in model.feedbackUpdates {
-                    logger.debug("Task got async feedback change to: \(String(describing: newFeedback))")
                     self?.updateFeedbackMessages(for: newFeedback)
                 }
-                logger.log("^^^ Got nil from stateUpdates iterator!  Ending observation task...")
             })
 
-        tasks.append(Task<Void, Never> { [weak self] in
-            for await newState in model.stateUpdates {
-                logger.debug("Task got async state change to: \(String(describing: newState))")
-                self?.onStateChanged(newState: newState)
-            }
-            logger.log("^^^ Got nil from stateUpdates iterator!  Ending observation task...")
-        })
+        tasks.append(
+            Task { @MainActor [weak self] in
+                for await newState in model.stateUpdates {
+                    self?.onStateChanged(newState: newState)
+                }
+            })
     }
 
     private func detachListeners() {
@@ -284,7 +285,7 @@ extension AppDataModel {
 
     // Should be called when a new capture is to be created, before the session will be needed.
     private func startNewCapture() throws {
-        logger.log("startNewCapture() called...")
+        Logger.capture.info("startNewCapture() called. Setting up capture folder and instantiating ObjectCaptureSession...")
         
         // 🔥 CRITICAL: Reset upload state for new capture
         // Without this, second capture will be silently skipped if first one completed/failed
@@ -294,7 +295,13 @@ extension AppDataModel {
         // DO NOT touch captureSessionID here - it stays frozen for the entire flow
         
         if !ObjectCaptureSession.isSupported {
-            preconditionFailure("ObjectCaptureSession is not supported on this device!")
+            throw NSError(
+                domain: "GuidedCaptureSample",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey:
+                    "ObjectCaptureSession is not supported on this device. " +
+                    "LiDAR-equipped iPhone/iPad is required (iPhone 12 Pro or later)."]
+            )
         }
 
         captureFolderManager = try CaptureFolderManager()
@@ -309,17 +316,40 @@ extension AppDataModel {
         }
 
         var configuration = ObjectCaptureSession.Configuration()
-        configuration.isOverCaptureEnabled = true
+        configuration.isOverCaptureEnabled = false
         configuration.checkpointDirectory = captureFolderManager.checkpointFolder
-        // Starts the initial segment and sets the output locations.
-        session.start(imagesDirectory: captureFolderManager.imagesFolder,
-                      configuration: configuration)
-
-        if case let .failed(error) = session.state {
-            logger.error("Got error starting session! \(String(describing: error))")
-            switchToErrorState(error: error)
-        } else {
-            state = .capturing
+        
+        // 🔥 CRITICAL FIX: We must set the state to .capturing BEFORE we call session.start.
+        // This allows SwiftUI to mount `CapturePrimaryView` and size its underlying CAMetalLayer
+        // to the full screen. If we call session.start() synchronously while the view is
+        // still being inserted, the CAMetalLayer is 0x0 and permanently corrupts the
+        // voxel integration pipeline.
+        Logger.capture.info("Setting state to .capturing to mount CapturePrimaryView...")
+        state = .capturing
+        
+        // ✅ Use Task { @MainActor } instead of DispatchQueue.main.async to stay within the
+        // Swift concurrency model. Two `await Task.yield()` calls surrender the main runloop
+        // twice — once for SwiftUI to commit the CapturePrimaryView layout (CAMetalLayer sized),
+        // and once for the GPU driver to allocate the drawable backing store.
+        // This eliminates the SIGABRT / "9000+ ms" hang on first-open.
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            Logger.capture.info("Yielding main actor control (Yield 1: let SwiftUI commit CapturePrimaryView)...")
+            await Task.yield()
+            Logger.capture.info("Yielding main actor control (Yield 2: let the GPU driver size the CAMetalLayer)...")
+            await Task.yield()
+            
+            Logger.capture.info("Invoking session.start()...")
+            // Starts the initial segment and sets the output locations after view is laid out.
+            session.start(imagesDirectory: captureFolderManager.imagesFolder,
+                          configuration: configuration)
+            
+            if case let .failed(error) = session.state {
+                Logger.capture.error("session.start() failed: \(String(describing: error))")
+                self.switchToErrorState(error: error)
+            } else {
+                Logger.capture.info("session.start() successfully invoked. Current session state: \(String(describing: session.state))")
+            }
         }
     }
 
@@ -372,8 +402,12 @@ extension AppDataModel {
 
     private func onStateChanged(newState: ObjectCaptureSession.CaptureState) {
         logger.info("OCViewModel switched to state: \(String(describing: newState))")
-        if case .completed = newState {
-            logger.log("ObjectCaptureSession moved in .completed state.")
+        
+        switch newState {
+        case .capturing:
+            Logger.capture.info("Capture session started capturing successfully!")
+        case .completed:
+            Logger.capture.info("Capture session completed successfully.")
             if isSaveDraftEnabled {
                 logger.log("The data is stored. Closing the session...")
                 reset()
@@ -381,17 +415,26 @@ extension AppDataModel {
                 logger.log("Switch app model to reconstruction...")
                 state = .prepareToReconstruct
             }
-        } else if case let .failed(error) = newState {
-            logger.error("OCS moved to error state \(String(describing: error))...")
+        case .failed(let error):
+            Logger.capture.error("Capture session failed with error: \(error.localizedDescription)")
             if case ObjectCaptureSession.Error.cancelled = error {
                 state = .restart
             } else {
                 switchToErrorState(error: error)
             }
+        default:
+            break
         }
     }
 
     private func updateFeedbackMessages(for feedback: Set<Feedback>) {
+        // Log bounding box state changes
+        if currentFeedback.contains(.objectNotDetected) && !feedback.contains(.objectNotDetected) {
+            Logger.capture.info("Bounding box detected successfully! objectNotDetected feedback cleared.")
+        } else if !currentFeedback.contains(.objectNotDetected) && feedback.contains(.objectNotDetected) {
+            Logger.capture.info("Bounding box lost or failed. objectNotDetected feedback added.")
+        }
+
         // Compare the incoming feedback with the previous feedback to find the intersection.
         let persistentFeedback = currentFeedback.intersection(feedback)
 
@@ -423,7 +466,8 @@ extension AppDataModel {
                 do {
                     try startNewCapture()
                 } catch {
-                    logger.error("Starting new capture failed!")
+                    logger.error("Starting new capture failed: \(error)")
+                    switchToErrorState(error: error)
                 }
             case .prepareToReconstruct:
                 // Clean up the session to free GPU and memory resources.
@@ -483,4 +527,65 @@ extension AppDataModel {
                 return .captureInAreaMode
         }
     }
+    
+    func resetStateAndRestart() {
+        logger.info("resetStateAndRestart() called")
+        removeCaptureFolder()
+        reset()
+        state = .ready
+    }
+}
+
+import os
+extension Logger {
+    struct CaptureLogger {
+        let systemLogger = Logger(subsystem: "com.example.apple-samplecode.guided-capture-sample", category: "Capture")
+        
+        func info(_ message: String) {
+            systemLogger.info("\(message)")
+            writeLogToFile(level: "INFO", message: message)
+        }
+        
+        func error(_ message: String) {
+            systemLogger.error("\(message)")
+            writeLogToFile(level: "ERROR", message: message)
+        }
+        
+        private func writeLogToFile(level: String, message: String) {
+            // ⚠️ CRITICAL FIX: DateFormatter is NOT thread-safe. Dispatch file I/O to a
+            // dedicated background queue so this is safe to call from any thread.
+            // Using a serial queue ensures log entries are written in order.
+            Self.logQueue.async {
+                let fileManager = FileManager.default
+                guard let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+                
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+                let dateString = dateFormatter.string(from: Date())
+                let logFileName = "capture_logs_\(dateString).txt"
+                
+                let logFileURL = documentsURL.appendingPathComponent(logFileName)
+                
+                let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .short, timeStyle: .medium)
+                let logLine = "[\(timestamp)] [\(level)] \(message)\n"
+                
+                if let data = logLine.data(using: .utf8) {
+                    if fileManager.fileExists(atPath: logFileURL.path) {
+                        if let fileHandle = try? FileHandle(forWritingTo: logFileURL) {
+                            fileHandle.seekToEndOfFile()
+                            fileHandle.write(data)
+                            fileHandle.closeFile()
+                        }
+                    } else {
+                        try? data.write(to: logFileURL, options: .atomic)
+                    }
+                }
+            }
+        }
+        
+        // Serial queue for thread-safe, ordered log file writes
+        private static let logQueue = DispatchQueue(label: "com.guidedcapture.logger", qos: .utility)
+    }
+    
+    static let capture = CaptureLogger()
 }

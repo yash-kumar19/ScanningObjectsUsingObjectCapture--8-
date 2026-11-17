@@ -37,14 +37,17 @@ struct OrderGroup: Identifiable {
 // MARK: - Helper Components
 struct DashboardCard<Content: View>: View {
     let content: Content
+    var stretchHeight: Bool = false
     
-    init(@ViewBuilder content: () -> Content) {
+    init(stretchHeight: Bool = false, @ViewBuilder content: () -> Content) {
+        self.stretchHeight = stretchHeight
         self.content = content()
     }
     
     var body: some View {
         content
             .padding(16)
+            .frame(maxWidth: .infinity, maxHeight: stretchHeight ? .infinity : nil, alignment: .leading)
             .background(
                 Color(hex: "1e293b"),
                 in: RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -187,6 +190,7 @@ struct OrderStatusBadge: View {
 struct OwnerDashboardScreen: View {
     @StateObject private var supabase = SupabaseManager.shared
     @StateObject private var viewModel = DashboardViewModel()
+    @ObservedObject private var orderManager = OwnerOrderManager.shared
     
     var onTabSelect: ((Int) -> Void)? = nil
     
@@ -200,6 +204,7 @@ struct OwnerDashboardScreen: View {
     @State private var errorMessage: String? = nil
     @State private var selectedOrderForDetail: Order? = nil
     @State private var fetchTask: Task<Void, Never>? = nil
+    @State private var showSyncWarning = false
     
     // Computed properties moved to DashboardViewModel
     
@@ -234,13 +239,48 @@ struct OwnerDashboardScreen: View {
                     .padding(.top, 24)
                     .skeleton(isLoading: isLoading)
                     
-                    if !isLoading {
-                        UploadQueueView(dishes: dishes) { dish in
-                            Task {
-                                try? await SupabaseManager.shared.updateDishPartial(id: dish.id, generationStatus: "pending")
-                                loadDashboardData()
+                    if orderManager.notificationPermissionStatus == .notDetermined {
+                        EnableNotificationsCard(
+                            title: "Enable Order Notifications",
+                            description: "Never miss new customer orders.",
+                            buttonTitle: "Enable",
+                            action: {
+                                orderManager.requestNotificationPermission()
                             }
+                        )
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    } else if orderManager.notificationPermissionStatus == .denied {
+                        EnableNotificationsCard(
+                            title: "Notifications Disabled ⚠️",
+                            description: "Please enable notifications in iOS Settings to receive new order alerts.",
+                            buttonTitle: "Open Settings",
+                            action: {
+                                if let url = URL(string: UIApplication.openSettingsURLString) {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
+                        )
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                    
+                    if showSyncWarning {
+                        HStack(spacing: 8) {
+                            Image(systemName: "wifi.exclamationmark")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.orange)
+                            Text("Syncing issue. Showing cached orders.")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.white.opacity(0.8))
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.orange.opacity(0.12))
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule().stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.bottom, -8)
                     }
                     
                     // Range Selector
@@ -311,7 +351,7 @@ struct OwnerDashboardScreen: View {
                     // Stats Grid
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
                         ForEach(viewModel.stats) { stat in
-                            DashboardCard {
+                            DashboardCard(stretchHeight: true) {
                                 VStack(alignment: .leading, spacing: 12) {
                                     ZStack {
                                         RoundedRectangle(cornerRadius: 12)
@@ -493,6 +533,14 @@ struct OwnerDashboardScreen: View {
                 }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .didReceiveOwnerOrders)) { notification in
+            if let fetchedOrders = notification.userInfo?["orders"] as? [Order] {
+                withAnimation {
+                    self.orders = fetchedOrders
+                    self.viewModel.update(orders: fetchedOrders, range: self.selectedRange)
+                }
+            }
+        }
         .sheet(item: $selectedOrderForDetail) { order in
             OwnerOrderDetailSheet(
                 order: order,
@@ -534,7 +582,9 @@ struct OwnerDashboardScreen: View {
                     self.orders = fetchedOrders
                     self.dishes = fetchedDishes
                     self.errorMessage = nil
+                    self.showSyncWarning = false
                     self.viewModel.update(orders: fetchedOrders, range: self.selectedRange)
+                    OwnerOrderManager.shared.didFetchOrders(fetchedOrders)
                     self.isRefreshing = false
                     self.isLoading = false
                 }
@@ -543,6 +593,9 @@ struct OwnerDashboardScreen: View {
                 print("❌ Error loading dashboard data: \(error.localizedDescription)")
                 await MainActor.run {
                     self.errorMessage = error.localizedDescription
+                    if !self.orders.isEmpty {
+                        self.showSyncWarning = true
+                    }
                     self.isRefreshing = false
                 }
             }
@@ -550,11 +603,11 @@ struct OwnerDashboardScreen: View {
     }
     
     private func loadOrdersQuietly() {
-        guard let userId = supabase.currentUser?.id, let currentRestaurant = self.restaurant else { return }
+        guard supabase.currentUser?.id != nil, let currentRestaurant = self.restaurant else { return }
         
         Task {
             do {
-                async let fetchedOrdersPromise = SupabaseManager.shared.fetchRestaurantOrders(restaurantId: currentRestaurant.id)
+                async let fetchedOrdersPromise = SupabaseManager.shared.fetchRestaurantOrders(restaurantId: currentRestaurant.owner_id)
                 async let fetchedDishesPromise = SupabaseManager.shared.fetchOwnerDishes()
                 
                 let fetchedOrders = try await fetchedOrdersPromise
@@ -563,11 +616,16 @@ struct OwnerDashboardScreen: View {
                 await MainActor.run {
                     self.orders = fetchedOrders
                     self.dishes = fetchedDishes
+                    self.showSyncWarning = false
                     self.viewModel.update(orders: fetchedOrders, range: self.selectedRange)
+                    OwnerOrderManager.shared.didFetchOrders(fetchedOrders)
                     self.isLoading = false
                 }
             } catch {
                 print("Quiet fetch error: \(error)")
+                await MainActor.run {
+                    self.showSyncWarning = true
+                }
             }
         }
     }
@@ -593,6 +651,7 @@ struct OwnerDashboardScreen: View {
                         )
                         orders[idx] = newOrder
                         self.viewModel.update(orders: orders, range: self.selectedRange)
+                        OwnerOrderManager.shared.didFetchOrders(orders)
                     }
                     if selectedOrderForDetail?.id == order.id {
                         selectedOrderForDetail = nil
@@ -875,5 +934,58 @@ class DashboardViewModel: ObservableObject {
         let sparse = (range == .today && currentOrders.count < 5)
         
         return CalculationResult(stats: computedStats, chartData: points, groups: groups, isSparse: sparse)
+    }
+}
+
+struct EnableNotificationsCard: View {
+    let title: String
+    let description: String
+    let buttonTitle: String
+    let action: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(Color(hex: "2b7fff").opacity(0.15))
+                    .frame(width: 48, height: 48)
+                Image(systemName: "bell.badge.fill")
+                    .font(.system(size: 20))
+                    .foregroundColor(Color(hex: "2b7fff"))
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.white)
+                Text(description)
+                    .font(.system(size: 13))
+                    .foregroundColor(.white.opacity(0.6))
+                    .lineLimit(2)
+            }
+            
+            Spacer()
+            
+            Button(action: action) {
+                Text(buttonTitle)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        LinearGradient(colors: [Color(hex: "2b7fff"), Color(hex: "1a5fd9")], startPoint: .leading, endPoint: .trailing)
+                    )
+                    .clipShape(Capsule())
+                    .shadow(color: Color(hex: "2b7fff").opacity(0.3), radius: 8, x: 0, y: 4)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(16)
+        .background(Color(hex: "1e293b"))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+        )
     }
 }

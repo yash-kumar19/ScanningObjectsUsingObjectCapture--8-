@@ -18,6 +18,8 @@ struct BottomOverlayButtons: View, OverlayButtons {
     @Binding var showCaptureModeGuidance: Bool
     @Binding var showTutorialView: Bool
     var rotationAngle: Angle
+    /// When false, the Continue/Start Capture button is disabled while Metal/LiDAR pipeline warms up.
+    var isPipelineReady: Bool = true
 
     var body: some View {
         HStack(alignment: .center) {
@@ -39,7 +41,8 @@ struct BottomOverlayButtons: View, OverlayButtons {
             if !isCapturingStarted(state: session.state) {
                 CaptureButton(session: session,
                               hasDetectionFailed: $hasDetectionFailed,
-                              showTutorialView: $showTutorialView)
+                              showTutorialView: $showTutorialView,
+                              isPipelineReady: isPipelineReady)
                     .frame(width: 200)
             }
 
@@ -73,10 +76,17 @@ private struct CaptureButton: View {
     var session: ObjectCaptureSession
     @Binding var hasDetectionFailed: Bool
     @Binding var showTutorialView: Bool
+    /// Blocks the button until the Metal/LiDAR pipeline has fully initialized.
+    var isPipelineReady: Bool = true
 
     var body: some View {
         Button(
             action: {
+                logger.log("--- CONTINUE BUTTON TAPPED ---")
+                logger.log("Current Session State: \(String(describing: session.state))")
+                logger.log("Camera Tracking: \(String(describing: session.cameraTracking))")
+                logger.log("isPipelineReady Flag: \(isPipelineReady)")
+                
                 performAction()
             },
             label: {
@@ -86,9 +96,43 @@ private struct CaptureButton: View {
                     .foregroundColor(.white)
                     .padding(.horizontal, 25)
                     .padding(.vertical, 20)
-                    .background(.blue)
+                    .background(isDisabled ? Color.gray : Color.blue)
                     .clipShape(Capsule())
             })
+            .disabled(isDisabled)
+    }
+
+    private var isDisabled: Bool {
+        // Block the button while the Metal/LiDAR voxel integration pipeline is warming up.
+        // Calling startDetecting() before the pipeline is ready causes:
+        // "Failed to run voxel integration pipeline in scene mode!" followed by
+        // a fatal Metal API Validation crash on meshShadowCalculateMip.
+        if !isPipelineReady { return true }
+        
+        // In ready state: also require normal camera tracking before allowing Continue.
+        // This ensures ARKit has enough tracking quality for plane detection,
+        // which is required by the masking manager's bounding box algorithm.
+        // Without a plane, the masking manager skips detection and RealityKit
+        // renders an empty bounding box → meshShadowCalculateMip crash.
+        if session.state == .ready {
+            if session.cameraTracking != .normal {
+                return true
+            }
+            return false
+        }
+        
+        if case .detecting = session.state {
+            // 1. Session health / camera tracking health
+            if session.cameraTracking != .normal {
+                return true
+            }
+            // 3. Object detected
+            if session.feedback.contains(.objectNotDetected) {
+                return true
+            }
+            return false
+        }
+        return false
     }
 
     private var buttonLabel: String {
@@ -109,14 +153,28 @@ private struct CaptureButton: View {
     }
 
     private func performAction() {
+        logger.log("=== performAction() Triggered ===")
+        logger.log("Session State: \(String(describing: session.state))")
+        logger.log("Capture Mode: \(String(describing: appModel.captureMode))")
+        logger.log("Camera Tracking: \(String(describing: session.cameraTracking))")
+        logger.log("Pipeline Ready: \(isPipelineReady)")
+        
         if session.state == .ready {
             switch appModel.captureMode {
             case .object:
-                hasDetectionFailed = !(session.startDetecting())
+                Logger.capture.info("Continue tapped in ready state (object mode): starting bounding box detection")
+                logger.log("Executing session.startDetecting()...")
+                let success = session.startDetecting()
+                logger.log("session.startDetecting() returned: \(success)")
+                hasDetectionFailed = !success
             case .area:
+                Logger.capture.info("Start Capture tapped in ready state (area mode): starting capturing")
+                logger.log("Executing session.startCapturing()...")
                 session.startCapturing()
             }
         } else if case .detecting = session.state {
+            Logger.capture.info("Start Capture / Continue tapped in detecting state: starting capturing phase")
+            logger.log("Executing session.startCapturing()...")
             session.startCapturing()
         }
     }
@@ -419,3 +477,4 @@ private struct AutoCaptureToggle: View {
         */
     }
 }
+

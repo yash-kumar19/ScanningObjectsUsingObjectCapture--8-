@@ -342,6 +342,7 @@ struct OwnerGeneratorScreen: View {
                 existingDish: nil,
                 prefilledModelURL: capturedModelURL
             )
+            .environment(appModel)
         }
     }
 }

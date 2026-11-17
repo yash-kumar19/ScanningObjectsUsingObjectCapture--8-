@@ -17,14 +17,14 @@ struct MyReservationsScreen: View {
             // Simple filter: if status is not cancelled and date is future (mock logic for now, or use complex date comparison)
             // For MVP, lets just say 'pending' or 'confirmed' are active/upcoming.
             // Or better, compare dates.
-            guard let date = ISO8601DateFormatter().date(from: $0.reservation_date) else { return false }
+            guard let date = ISO8601DateFormatter.parse($0.reservation_date) else { return false }
             return date > Date() && $0.status != "cancelled"
         }
     }
     
     var pastReservations: [Reservation] {
         reservations.filter {
-            guard let date = ISO8601DateFormatter().date(from: $0.reservation_date) else { return true }
+            guard let date = ISO8601DateFormatter.parse($0.reservation_date) else { return true }
             return date <= Date() || $0.status == "cancelled"
         }
     }
@@ -259,8 +259,7 @@ struct ReservationCard: View {
     }
     
     var formattedDate: String {
-        let formatter = ISO8601DateFormatter()
-        if let date = formatter.date(from: reservation.reservation_date) {
+        if let date = ISO8601DateFormatter.parse(reservation.reservation_date) {
             let displayFormatter = DateFormatter()
             displayFormatter.dateStyle = .medium
             return displayFormatter.string(from: date)
@@ -269,8 +268,7 @@ struct ReservationCard: View {
     }
     
     var formattedTime: String {
-        let formatter = ISO8601DateFormatter()
-        if let date = formatter.date(from: reservation.reservation_date) {
+        if let date = ISO8601DateFormatter.parse(reservation.reservation_date) {
             let displayFormatter = DateFormatter()
             displayFormatter.timeStyle = .short
             return displayFormatter.string(from: date)

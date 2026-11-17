@@ -78,7 +78,14 @@ struct SearchScreen: View {
                     .padding(.top, 20)
                     
                     if isLoading {
-                        ProgressView().tint(.white).padding(40)
+                        LazyVStack(spacing: 16) {
+                            ForEach(0..<3, id: \.self) { _ in
+                                DiscoverRestaurantCardSkeleton()
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
+                        .padding(.bottom, 120)
                     } else if filteredRestaurants.isEmpty {
                          Text(restaurants.isEmpty ? "No restaurants found." : "No matches found.")
                              .foregroundColor(.gray)
@@ -284,8 +291,55 @@ struct DiscoverViewMenuButton: View {
     }
 }
 
-// Helper function removed as we now use real data
-
+struct DiscoverRestaurantCardSkeleton: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Image Placeholder
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white.opacity(0.08))
+                .frame(height: 180)
+            
+            // Info Section Placeholder
+            VStack(alignment: .leading, spacing: 8) {
+                // Name
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: 180, height: 20)
+                
+                // Cuisine
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: 100, height: 14)
+                
+                // Location row
+                HStack(spacing: 4) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.white.opacity(0.08))
+                        .frame(width: 14, height: 14)
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.white.opacity(0.08))
+                        .frame(width: 120, height: 12)
+                }
+                
+                // View Menu Button Placeholder
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.white.opacity(0.08))
+                    .frame(height: 44)
+                    .padding(.top, 4)
+            }
+            .padding(16)
+            .background(Color(hex: "1E293B"))
+            .cornerRadius(16)
+        }
+        .background(Color(hex: "1E293B"))
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(hex: "334155"), lineWidth: 1)
+        )
+        .skeleton(isLoading: true)
+    }
+}
 
 struct DiscoverScaleButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {

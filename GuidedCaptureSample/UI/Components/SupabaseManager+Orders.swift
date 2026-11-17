@@ -211,7 +211,7 @@ extension SupabaseManager {
         let queryItems = [
             URLQueryItem(name: "restaurant_id", value: "eq.\(restaurantId)"),
             URLQueryItem(name: "created_at", value: "gte.\(dateString)"),
-            URLQueryItem(name: "select", value: "id,status,total,created_at")
+            URLQueryItem(name: "select", value: "id,status,total_amount,created_at,restaurant_id,customer_name")
         ]
         
         let baseURL = SupabaseConfig.databaseURL.appendingPathComponent("orders")
@@ -219,15 +219,26 @@ extension SupabaseManager {
         components?.queryItems = queryItems
         guard let url = components?.url else { throw URLError(.badURL) }
         
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: url, timeoutInterval: 15.0)
         request.httpMethod = "GET"
         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.addValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+        guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            let errorMsg: String
+            if let jsonError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data) {
+                errorMsg = jsonError.message ?? jsonError.error ?? "Unknown Error"
+            } else {
+                errorMsg = String(data: data, encoding: .utf8) ?? "Bad server response"
+            }
+            print("❌ fetchDashboardOrders failed with status \(httpResponse.statusCode): \(errorMsg)")
+            throw SupabaseAPIError(statusCode: httpResponse.statusCode, message: errorMsg)
         }
         
         return try JSONDecoder().decode([Order].self, from: data)
