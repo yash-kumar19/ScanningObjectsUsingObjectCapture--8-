@@ -6,6 +6,7 @@ A data model for maintaining the app state, including the underlying object capt
  you maintain in addition, perhaps with invariants between them.
 */
 
+import AVFoundation
 import RealityKit
 import SwiftUI
 import os
@@ -41,6 +42,7 @@ class AppDataModel: Identifiable {
     private(set) var isSaveDraftEnabled = false
 
     var messageList = TimedMessageList()
+    let motionCoach = MotionCoach()
 
     enum ModelState {
         case notSet
@@ -52,6 +54,23 @@ class AppDataModel: Identifiable {
         case completed
         case restart
         case failed
+    }
+
+    enum CaptureError: LocalizedError {
+        case unsupportedDevice
+        case cameraAccessDenied
+        case insufficientStorage(required: String)
+
+        var errorDescription: String? {
+            switch self {
+            case .unsupportedDevice:
+                return "Object Capture requires an iPhone with LiDAR (iPhone 12 Pro or later) running iOS 17 or later."
+            case .cameraAccessDenied:
+                return "Camera access is required to capture 3D models. Please enable Camera permissions in Settings."
+            case .insufficientStorage(let required):
+                return "Not Enough Storage: Object Capture requires at least \(required) of free storage on your iPhone to capture and reconstruct models. Please free up some space in Settings -> iPhone Storage and try again."
+            }
+        }
     }
 
     var state: ModelState = .notSet {
@@ -99,6 +118,13 @@ class AppDataModel: Identifiable {
                                                selector: #selector(handleAppTermination(notification:)),
                                                name: UIApplication.willTerminateNotification,
                                                object: nil)
+    }
+
+    func startNewCaptureIfNeeded() {
+        if (state == .ready || state == .notSet) && objectCaptureSession == nil {
+            logger.info("startNewCaptureIfNeeded() triggered on active view")
+            performStateTransition(from: .notSet, to: .ready)
+        }
     }
 
     deinit {
@@ -294,14 +320,21 @@ extension AppDataModel {
         modelUploadTask = nil
         // DO NOT touch captureSessionID here - it stays frozen for the entire flow
         
-        if !ObjectCaptureSession.isSupported {
-            throw NSError(
-                domain: "GuidedCaptureSample",
-                code: -1,
-                userInfo: [NSLocalizedDescriptionKey:
-                    "ObjectCaptureSession is not supported on this device. " +
-                    "LiDAR-equipped iPhone/iPad is required (iPhone 12 Pro or later)."]
-            )
+        guard ObjectCaptureSession.isSupported else {
+            logger.error("ObjectCaptureSession is not supported on this device!")
+            switchToErrorState(error: CaptureError.unsupportedDevice)
+            return
+        }
+
+        let authStatus = AVCaptureDevice.authorizationStatus(for: .video)
+        if authStatus == .denied || authStatus == .restricted {
+            logger.error("Camera access is denied or restricted.")
+            switchToErrorState(error: CaptureError.cameraAccessDenied)
+            return
+        }
+
+        DispatchQueue.global(qos: .utility).async {
+            CaptureFolderManager.cleanUpAbandonedCaptures()
         }
 
         captureFolderManager = try CaptureFolderManager()
@@ -316,7 +349,7 @@ extension AppDataModel {
         }
 
         var configuration = ObjectCaptureSession.Configuration()
-        configuration.isOverCaptureEnabled = false
+        configuration.isOverCaptureEnabled = true
         configuration.checkpointDirectory = captureFolderManager.checkpointFolder
         
         // 🔥 CRITICAL FIX: We must set the state to .capturing BEFORE we call session.start.
@@ -349,13 +382,19 @@ extension AppDataModel {
                 self.switchToErrorState(error: error)
             } else {
                 Logger.capture.info("session.start() successfully invoked. Current session state: \(String(describing: session.state))")
+                self.motionCoach.start(session: session)
             }
         }
     }
 
     private func switchToErrorState(error inError: Swift.Error) {
-        // Set the error first since the transitions will assume it is non-nil!
-        error = inError
+        motionCoach.stop()
+        if case let ObjectCaptureSession.Error.insufficientStorage(requiredBytes) = inError {
+            let requiredFormatted = ByteCountFormatter.string(fromByteCount: requiredBytes, countStyle: .file)
+            error = CaptureError.insufficientStorage(required: requiredFormatted)
+        } else {
+            error = inError
+        }
         state = .failed
     }
 
@@ -383,6 +422,7 @@ extension AppDataModel {
 
     func reset() {
         logger.info("reset() called...")
+        motionCoach.stop()
         photogrammetrySession = nil
         objectCaptureSession = nil
         captureFolderManager = nil
@@ -406,8 +446,12 @@ extension AppDataModel {
         switch newState {
         case .capturing:
             Logger.capture.info("Capture session started capturing successfully!")
+            if let session = objectCaptureSession {
+                motionCoach.start(session: session)
+            }
         case .completed:
             Logger.capture.info("Capture session completed successfully.")
+            motionCoach.stop()
             if isSaveDraftEnabled {
                 logger.log("The data is stored. Closing the session...")
                 reset()
@@ -417,6 +461,7 @@ extension AppDataModel {
             }
         case .failed(let error):
             Logger.capture.error("Capture session failed with error: \(error.localizedDescription)")
+            motionCoach.stop()
             if case ObjectCaptureSession.Error.cancelled = error {
                 state = .restart
             } else {
@@ -471,6 +516,7 @@ extension AppDataModel {
                 }
             case .prepareToReconstruct:
                 // Clean up the session to free GPU and memory resources.
+                motionCoach.stop()
                 objectCaptureSession = nil
                 do {
                     try startReconstruction()

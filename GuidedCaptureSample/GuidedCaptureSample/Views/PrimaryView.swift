@@ -17,18 +17,28 @@ struct PrimaryView: View {
     @State private var showReconstructionView: Bool = false
     @State private var showErrorAlert: Bool = false
     private var showProgressView: Bool {
-        appModel.state == .completed || appModel.state == .restart || appModel.state == .ready
+        appModel.state == .completed || appModel.state == .restart || appModel.state == .ready || appModel.state == .notSet
     }
 
     var body: some View {
-        VStack {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
             if appModel.state == .capturing {
                 if let session = appModel.objectCaptureSession {
                     CapturePrimaryView(session: session)
                 }
+            } else if appModel.state == .failed {
+                ErrorDisplayView(error: appModel.error) {
+                    logger.log("Retry tapped in ErrorDisplayView...")
+                    appModel.state = .restart
+                }
             } else if showProgressView {
-                CircularProgressView()
+                LoadingDisplayView()
             }
+        }
+        .task {
+            appModel.startNewCaptureIfNeeded()
         }
         .onChange(of: appModel.state) { _, newState in
             if newState == .failed {
@@ -50,7 +60,7 @@ struct PrimaryView: View {
             }
         }
         .alert(
-            "Failed:  " + (appModel.error != nil  ? "\(String(describing: appModel.error!))" : ""),
+            "Notice",
             isPresented: $showErrorAlert,
             actions: {
                 Button("OK") {
@@ -58,25 +68,70 @@ struct PrimaryView: View {
                     appModel.state = .restart
                 }
             },
-            message: {}
+            message: {
+                if let error = appModel.error {
+                    Text(error.localizedDescription)
+                }
+            }
         )
     }
 }
 
-private struct CircularProgressView: View {
-    @Environment(\.colorScheme) private var colorScheme
+private struct LoadingDisplayView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                .scaleEffect(1.2)
+
+            Text("Preparing 3D camera...")
+                .font(.subheadline)
+                .foregroundColor(.white.opacity(0.8))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.ignoresSafeArea())
+    }
+}
+
+private struct ErrorDisplayView: View {
+    var error: Swift.Error?
+    var onRetry: () -> Void
 
     var body: some View {
-        VStack {
+        VStack(spacing: 20) {
             Spacer()
-            ZStack {
-                Spacer()
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: colorScheme == .light ? .black : .white))
-                Spacer()
+
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 56))
+                .foregroundColor(.orange)
+
+            Text("Cannot Start 3D Scan")
+                .font(.title2.weight(.bold))
+                .foregroundColor(.white)
+
+            Text(error?.localizedDescription ?? "An unexpected error occurred while starting the camera session.")
+                .font(.subheadline)
+                .foregroundColor(.white.opacity(0.85))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+
+            Button(action: onRetry) {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.clockwise")
+                    Text("Try Again")
+                }
+                .font(.headline)
+                .foregroundColor(.black)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 14)
+                .background(Color.white, in: Capsule())
             }
+            .padding(.top, 10)
+
             Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.ignoresSafeArea())
     }
 }
 

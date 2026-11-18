@@ -58,6 +58,41 @@ class CaptureFolderManager {
         try CaptureFolderManager.createDirectoryRecursively(modelsFolder)
     }
 
+    /// Cleans up any abandoned or incomplete capture sessions to free local storage.
+    static func cleanUpAbandonedCaptures(excluding activeCaptureFolder: URL? = nil) {
+        let docs = URL.documentsDirectory
+        guard let contents = try? FileManager.default.contentsOfDirectory(at: docs, includingPropertiesForKeys: [.isDirectoryKey, .creationDateKey]) else { return }
+        let now = Date()
+        for url in contents {
+            if let active = activeCaptureFolder, url.path == active.path {
+                continue
+            }
+            let name = url.lastPathComponent
+            // ISO8601 timestamps contain T and Z (e.g. 2026-11-18T08:00:00Z)
+            if name.contains("T") && name.contains("Z") {
+                // Check if directory is older than 5 minutes to avoid race conditions with a fresh capture
+                if let resourceValues = try? url.resourceValues(forKeys: [.creationDateKey]),
+                   let creationDate = resourceValues.creationDate,
+                   now.timeIntervalSince(creationDate) < 300 {
+                    continue
+                }
+                
+                let modelsDir = url.appendingPathComponent("Models")
+                let hasUsdz: Bool
+                if let modelContents = try? FileManager.default.contentsOfDirectory(at: modelsDir, includingPropertiesForKeys: nil) {
+                    hasUsdz = modelContents.contains { $0.pathExtension.lowercased() == "usdz" }
+                } else {
+                    hasUsdz = false
+                }
+                
+                if !hasUsdz {
+                    logger.log("Cleaning up abandoned capture folder: \(url.path)")
+                    try? FileManager.default.removeItem(at: url)
+                }
+            }
+        }
+    }
+
     // - MARK: Private interface below.
 
     // Creates a new capture directory based on the current timestamp in the top level Documents

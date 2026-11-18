@@ -34,6 +34,22 @@ struct CaptureOverlayView: View {
                     TopOverlayButtons(session: session,
                                       showCaptureModeGuidance: showCaptureModeGuidance)
 
+                    if let coachHint = appModel.motionCoach.activeCoachHint {
+                        HStack(spacing: 8) {
+                            Image(systemName: "arrow.up.and.down.and.sparkles")
+                                .font(.subheadline.weight(.semibold))
+                            Text(coachHint)
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .overlay(Capsule().stroke(Color.white.opacity(0.25), lineWidth: 1))
+                        .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                    }
+
                     Spacer()
 
                     BoundingBoxGuidanceView(session: session, hasDetectionFailed: hasDetectionFailed)
@@ -44,6 +60,7 @@ struct CaptureOverlayView: View {
                                          showTutorialView: $showTutorialView,
                                          rotationAngle: rotationAngle)
                 }
+                .animation(.easeInOut(duration: 0.25), value: appModel.motionCoach.activeCoachHint)
                 .padding()
                 .padding(.horizontal, 15)
                 .background {
@@ -79,7 +96,7 @@ struct CaptureOverlayView: View {
     }
 
     private var shouldShowOverlayView: Bool {
-        return showTutorialView || (session.cameraTracking == .normal && !session.isPaused)
+        return showTutorialView || !session.isPaused
     }
 
     private var tutorialURL: URL? {
@@ -142,28 +159,21 @@ private struct TutorialView: View {
         .background(Color.black.opacity(0.5))
         .allowsHitTesting(false)
         .onAppear {
-            // Let the screen dim before the animation tutorial plays.
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                // Pause the capture session while the tutorial plays to reduce visual clutter
-                // and avoid taking shots while the screen is covered.
-                logger.log("Tutorial onAppear() is pausing the session...")
-                appModel.objectCaptureSession?.pause()
-
-                withAnimation {
-                    isVisible = true
-                }
+            withAnimation {
+                isVisible = true
             }
         }
         .onDisappear {
-            // Resume the capture session once the tutorial is done.
             logger.log("Tutorial onDisappear() is resuming the session...")
             appModel.objectCaptureSession?.resume()
         }
         .task {
-            let animationDuration = try? await AVURLAsset(url: url).load(.duration).seconds - reducedTutorialAnimationTime
-            DispatchQueue.main.asyncAfter(deadline: .now() + (animationDuration ?? 0.0)) {
-                showTutorialView = false
-            }
+            appModel.objectCaptureSession?.pause()
+            let rawDuration = (try? await AVURLAsset(url: url).load(.duration).seconds) ?? 4.0
+            let effectiveDuration = max(1.5, rawDuration - reducedTutorialAnimationTime)
+            try? await Task.sleep(nanoseconds: UInt64(effectiveDuration * 1_000_000_000))
+            showTutorialView = false
+            appModel.objectCaptureSession?.resume()
         }
     }
 

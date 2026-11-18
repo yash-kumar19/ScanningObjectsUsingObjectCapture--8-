@@ -47,14 +47,14 @@ extension OnboardingTutorialView {
         static let firstSegmentCompleteTitle = NSLocalizedString(
             "First segment complete. (Review, Object Capture)",
             bundle: Bundle.main,
-            value: "First segment complete.",
+            value: "Orbit complete.",
             comment: "Feedback title for when user has finished capturing first segment."
         )
 
         static let firstSegmentCompleteDetailText = NSLocalizedString(
             "For best quality, three segments are recommended. (Review, Object Capture, 1st Segment)",
             bundle: Bundle.main,
-            value: "For best quality, three segments are recommended.",
+            value: "Tap Finish to create your 3D model.",
             comment: "Feedback for when user has finished capturing first segment."
         )
 
